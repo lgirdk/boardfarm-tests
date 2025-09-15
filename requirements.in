@@ -1,0 +1,8 @@
+boardfarm3[pytest]
+pytest-html
+pytest-randomly
+pytest-timeout
+
+#solve conflicts
+charset-normalizer<3
+    #because of commitizen

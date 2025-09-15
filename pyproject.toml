@@ -1,0 +1,68 @@
+[tool.commitizen]
+    name = "cz_conventional_commits"
+    style = [
+        ["qmark", "fg:#ff9d00 bold"],
+        ["question", "bold"],
+        ["answer", "fg:#ff9d00 bold"],
+        ["pointer", "fg:#ff9d00 bold"],
+        ["highlighted", "fg:#ff9d00 bold"],
+        ["selected", "fg:#cc5454"],
+        ["separator", "fg:#cc5454"],
+        ["instruction", ""],
+        ["text", ""],
+        ["disabled", "fg:#858585 italic"],
+    ]
+    tag_format = "$version"
+    version = "0.0.1a1"
+    version_files = [
+        "pyproject.toml:version",
+    ]
+
+[tool.mypy]
+    disallow_untyped_defs  = true
+    ignore_missing_imports = true
+    no_strict_optional     = true
+    pretty                 = true
+    show_error_codes       = true
+    warn_redundant_casts   = true
+    warn_unreachable       = true
+    warn_unused_ignores    = true
+
+[tool.ruff]
+    lint.select = [ "ALL" ]
+    lint.ignore = [
+        "ANN101",  # missing-type-self (flake8-annotations)
+        "ANN102",  # missing-type-cls (flake8-annotations)
+        "D211",    # one-blank-line-before-class (pydocstyle)
+        "D213",    # multi-line-summary-second-line (pydocstyle)
+        "COM812",  # trailing-comma-missing (flake8-commas)
+        "S101",    # use of assert (flake8-bandit)
+        "N999",    # invalid-module-name (pep8-naming)
+        "N802",    # invalid-function-name (pep8-naming)
+    ]
+    lint.extend-ignore = ["ISC001"]
+    line-length = 88
+
+    extend-exclude = ["venv3", ".venv3", ".ruff_cache"]
+    lint.fixable = ["ALL"]
+    lint.unfixable = ["F401"]
+    # Assume Python 3.11.
+    target-version = "py312"
+    # Only ignore variables named "_".
+    lint.dummy-variable-rgx = "^_$"
+
+    [tool.ruff.lint.mccabe]
+    # Unlike Flake8, default to a complexity level of 10.
+    max-complexity = 12
+
+    [tool.ruff.format]
+    # Enable reformatting of code snippets in docstrings.
+    docstring-code-format = true
+
+
+    [tool.ruff.lint.pylint]
+    max-args = 10
+    max-statements = 75
+
+    [tool.ruff.lint.flake8-pytest-style]
+    fixture-parentheses = true
