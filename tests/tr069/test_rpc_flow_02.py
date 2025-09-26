@@ -54,7 +54,7 @@ def setup_teardown(
         "environment_def": {
             "board": {
                 "lan_clients": [{}],
-                "eRouter_Provisioning_mode": ["ipv4", "dual", "ipv6"]
+                "eRouter_Provisioning_mode": ["ipv4", "dual", "ipv6"],
             },
             "tr-069": {},
         }
@@ -83,18 +83,18 @@ def test_MVX_TST_113353(
     power_cycle(board)
     assert is_board_online_after_reset(), "Board is not online after reset"
     bf_context.check_after_reboot = False  # type: ignore[attr-defined]
-    assert verify_erouter_ip_address(mode=mode, board=board, retry=9), (
-        f"erouter didn't get erouter ip for {mode}"
-    )
+    assert verify_erouter_ip_address(
+        mode=mode, board=board, retry=9
+    ), f"erouter didn't get erouter ip for {mode}"
 
     bf_logger.log_step("Step3: Verify the DUT registration status on the ACS")
-    assert retry(is_dut_online_on_acs, 6, acs, board), (
-        "DUT is not online on ACS after reboot"
-    )
+    assert retry(
+        is_dut_online_on_acs, 6, acs, board
+    ), "DUT is not online on ACS after reboot"
 
     bf_logger.log_step(
         f"Step4: Verify ACS Connectivity by performing GPV RPC on {param}"
     )
-    assert get_parameter_values(param, acs, board)[0]["value"] == acs_url, (
-        f"acs url from gpv of {param} does not match expected url {acs_url}"
-    )
+    assert (
+        get_parameter_values(param, acs, board)[0]["value"] == acs_url
+    ), f"acs url from gpv of {param} does not match expected url {acs_url}"

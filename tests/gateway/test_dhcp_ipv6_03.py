@@ -124,9 +124,9 @@ def test_MVX_TST_92486(
         assert retry_on_exception(
             is_board_online_after_reset, (), retries=5, tout=30
         ), "Board is not online post factory reset"
-        assert verify_erouter_ip_address(mode=mode, board=board, retry=9), (
-            f"erouter interface doesn't have ip in required mode {mode}"
-        )
+        assert verify_erouter_ip_address(
+            mode=mode, board=board, retry=9
+        ), f"erouter interface doesn't have ip in required mode {mode}"
         bf_context.reboot_required = False  # type: ignore[attr-defined]
 
     bf_logger.log_step("Step 3: Verify ManagementServer.URL in SARR packets")

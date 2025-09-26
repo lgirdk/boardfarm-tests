@@ -25,6 +25,6 @@ def test_LAN_to_WAN_IPv4_connectivity(
             "STEP 2: Verify that the HTTP server running on the WAN "
             "client is accessible using IPv4"
         )
-        assert is_wan_accessible_on_client(lan, port, wan=wan), (
-            "WAN is not accessible on LAN client via IPv4"
-        )
+        assert is_wan_accessible_on_client(
+            lan, port, wan=wan
+        ), "WAN is not accessible on LAN client via IPv4"

@@ -48,7 +48,7 @@ def test_DualRG_Mode_Port_scan_eRouter_WAN_IP_from_WAN(
     )
     nmap_output = create_tcp_udp_session(wan, board, "ipv4", 65535, 4, timeout=30)
     assert "Nmap done" in str(nmap_output), "NMAP is not successful"
-    assert "1 IP address (1 host up)" in str(nmap_output), (
-        "Expected host status not found in Nmap output"
-    )
+    assert "1 IP address (1 host up)" in str(
+        nmap_output
+    ), "Expected host status not found in Nmap output"
     _output_validation(nmap_output)

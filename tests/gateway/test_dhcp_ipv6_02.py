@@ -31,12 +31,12 @@ from pytest_boardfarm3.lib import ContextStorage, TestLogger
 
 def _verify_ia_pd_message(ia_pd_message: list, msg_type: str) -> None:
     assert ia_pd_message, f"DHCPv6 {msg_type} message do not contain IA_PD message"
-    assert ia_pd_message[0]["dhcpv6.option.type"] == "25", (
-        f"DHCPv6 {msg_type} message do not contain IA_PD option"
-    )
-    assert ia_pd_message[0]["IA Prefix"].get("dhcpv6.iaprefix.pref_addr"), (
-        f"DHCPv6 {msg_type} message do not contain IA_PD Prefix address"
-    )
+    assert (
+        ia_pd_message[0]["dhcpv6.option.type"] == "25"
+    ), f"DHCPv6 {msg_type} message do not contain IA_PD option"
+    assert ia_pd_message[0]["IA Prefix"].get(
+        "dhcpv6.iaprefix.pref_addr"
+    ), f"DHCPv6 {msg_type} message do not contain IA_PD Prefix address"
 
 
 def _extract_ia_pd_messages(dhcp_output: list) -> dict:
@@ -136,9 +136,9 @@ def test_MVX_TST_32356(
         assert retry_on_exception(
             is_board_online_after_reset, (), retries=5, tout=30
         ), "Board is not online post factory reset"
-        assert verify_erouter_ip_address(mode=mode, board=board, retry=9), (
-            f"erouter interface doesn't have ip in required {mode} mode"
-        )
+        assert verify_erouter_ip_address(
+            mode=mode, board=board, retry=9
+        ), f"erouter interface doesn't have ip in required {mode} mode"
         bf_context.check_after_reboot = False  # type: ignore[attr-defined]
         time.sleep(10)
 
@@ -183,6 +183,6 @@ def test_MVX_TST_32356(
         "Step 4: Verify that DUT acquires global IPv6 address on its eRouter WAN "
         "interface."
     )
-    assert get_erouter_addresses(board=board, retry_count=9).ipv6, (
-        "DUT's eRouter WAN interface do not have global IPv6 address"
-    )
+    assert get_erouter_addresses(
+        board=board, retry_count=9
+    ).ipv6, "DUT's eRouter WAN interface do not have global IPv6 address"

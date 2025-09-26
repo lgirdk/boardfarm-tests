@@ -29,6 +29,6 @@ def test_MVX_TST_744(bf_logger: TestLogger, device_manager: DeviceManager) -> No
         bf_logger.log_step(
             "Step2: From CPE1, access the http server on CPE2 using IPv6 address."
         )
-        assert http_get(lan1, f"-k -m 10 http://[{lan2_ip}]:{port}"), (
-            "lan1 is unable to reach the HTTP server on lan2 using IPv6 address."
-        )
+        assert http_get(
+            lan1, f"-k -m 10 http://[{lan2_ip}]:{port}"
+        ), "lan1 is unable to reach the HTTP server on lan2 using IPv6 address."

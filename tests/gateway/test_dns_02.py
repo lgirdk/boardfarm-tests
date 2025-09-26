@@ -48,14 +48,14 @@ def test_MVX_TST_603(
     lan.release_dhcp(lan.iface_dut)
     bf_context.enable_ipv4 = True  # type: ignore[attr-defined]
     assert lan.ipv6_addr, "Lan client doesn't have IPv6 address"
-    assert lan.ipv4_addr == "", (
-        f"IPv4 address still present in {lan.iface_dut} interface on LAN"
-    )
+    assert (
+        lan.ipv4_addr == ""
+    ), f"IPv4 address still present in {lan.iface_dut} interface on LAN"
 
     bf_logger.log_step("Step2: Verify that IPv6 domain name can be resolved to IP.")
     domain = "ipv6wan.boardfarm.com"
     output = get_nslookup_data(lan, f"{domain} {wan_ipv6}", opts="-q=AAAA")
     assert domain == output["domain_name"], f"nslookup failed for {wan_ipv6}"
-    assert re.search(AllValidIpv6AddressesRegex, output["domain_ip_addr"][0]), (
-        "DNS server fails to resolve IPv6 address"
-    )
+    assert re.search(
+        AllValidIpv6AddressesRegex, output["domain_ip_addr"][0]
+    ), "DNS server fails to resolve IPv6 address"

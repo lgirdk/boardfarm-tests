@@ -124,9 +124,9 @@ def test_MVX_TST_6559(
         bf_logger.log_step(
             "Step 3: Verify DUT comes back online and eRouter gets an IP address."
         )
-        assert verify_erouter_ip_address(mode=mode, board=board, retry=9), (
-            f"erouter does not get ip in required mode {mode}"
-        )
+        assert verify_erouter_ip_address(
+            mode=mode, board=board, retry=9
+        ), f"erouter does not get ip in required mode {mode}"
         bf_context.check_after_reboot = False  # type: ignore[attr-defined]
         time.sleep(60)  # wait for packet capture to complete
 
@@ -134,9 +134,9 @@ def test_MVX_TST_6559(
         "Step 4: Verify the DUT should establish a connection to the ACS and "
         "issue the Inform message after reboot. "
     )
-    assert retry(is_dut_online_on_acs, 5, acs, board), (
-        "DUT is not online on ACS after reboot"
-    )
+    assert retry(
+        is_dut_online_on_acs, 5, acs, board
+    ), "DUT is not online on ACS after reboot"
     tcpdump_output = acs.tcpdump_read_pcap(  # type: ignore[attr-defined]
         fname=pcap_file, additional_args=f"-A {read_filter}", timeout=90
     )
@@ -144,7 +144,7 @@ def test_MVX_TST_6559(
     eventcode_result = re.search(
         r"\<cwmp:Inform\>.*<EventCode>1 BOOT</EventCode>", output
     )
-    assert eventcode_result, (
-        "Inform message with '1 BOOT' event is not present in pcap data"
-    )
+    assert (
+        eventcode_result
+    ), "Inform message with '1 BOOT' event is not present in pcap data"
     bf_context.success = True  # type: ignore[attr-defined]

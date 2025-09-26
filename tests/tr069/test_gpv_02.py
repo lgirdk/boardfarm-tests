@@ -71,6 +71,6 @@ def test_MVX_TST_105789(
     bf_logger.log_step(
         f"Step 4: Execute GPV RPC by providing parameter name as: {dns_param}"
     )
-    assert get_parameter_values(dns_param, acs, board)[0]["value"] == dns_value, (
-        "GPV is unsuccessful and did not returned value as 4"
-    )
+    assert (
+        get_parameter_values(dns_param, acs, board)[0]["value"] == dns_value
+    ), "GPV is unsuccessful and did not returned value as 4"

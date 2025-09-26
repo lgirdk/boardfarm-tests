@@ -28,6 +28,6 @@ def test_MVX_TST_607(device_manager: DeviceManager, bf_logger: TestLogger) -> No
     bf_logger.log_step("Step1: Verify that IPv6 domain name can be resolved to IP.")
     output = get_nslookup_data(lan, f"{wan_host}", opts="-q=AAAA")
     assert wan_host == output["domain_name"], f"nslookup failed for {wan_ipv4}"
-    assert re.search(AllValidIpv6AddressesRegex, output["domain_ip_addr"][0]), (
-        "DNS server fails to resolve IPv6 address"
-    )
+    assert re.search(
+        AllValidIpv6AddressesRegex, output["domain_ip_addr"][0]
+    ), "DNS server fails to resolve IPv6 address"

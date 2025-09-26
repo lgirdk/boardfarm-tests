@@ -147,12 +147,12 @@ def test_MVX_TST_17969(
             " Interface to come up"
         )
         retry_on_exception(wait_for_board_boot_start, (), retries=2, tout=1)
-        assert retry_on_exception(is_board_online_after_reset, (), retries=5, tout=1), (
-            "Board is not online post factory reset"
-        )
-        assert _verify_erouter_mode(mode), (
-            "Erouter does not have ip address after Factory Reset"
-        )
+        assert retry_on_exception(
+            is_board_online_after_reset, (), retries=5, tout=1
+        ), "Board is not online post factory reset"
+        assert _verify_erouter_mode(
+            mode
+        ), "Erouter does not have ip address after Factory Reset"
         bf_context.reboot_required = False  # type: ignore[attr-defined]
 
         time.sleep(30)  # wait for packet capture to complete

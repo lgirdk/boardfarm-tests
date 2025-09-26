@@ -31,6 +31,6 @@ def test_MVX_TST_532(bf_logger: TestLogger, device_manager: DeviceManager) -> No
             "STEP 2: Verify that the HTTP server running on the WAN client is "
             "accessible using IPv6"
         )
-        assert is_wan_accessible_on_client(lan, port=port, is_ipv6=True, wan=wan), (
-            "WAN is not accessible from LAN client via IPv6"
-        )
+        assert is_wan_accessible_on_client(
+            lan, port=port, is_ipv6=True, wan=wan
+        ), "WAN is not accessible from LAN client via IPv6"

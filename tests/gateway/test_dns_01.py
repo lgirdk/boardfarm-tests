@@ -49,15 +49,15 @@ def test_MVX_TST_598(
     lan.disable_ipv6()
     bf_context.enable_ipv6 = True  # type: ignore[attr-defined]
     assert lan.ipv4_addr, "Lan client doesn't have IPv4 address"
-    assert lan.ipv6_addr == "", (
-        f"IPv6 address still present in {lan.iface_dut} interface on LAN"
-    )
+    assert (
+        lan.ipv6_addr == ""
+    ), f"IPv6 address still present in {lan.iface_dut} interface on LAN"
 
     bf_logger.log_step("Step2: Verify that IPv6 domain name can be resolved to IP.")
     dhcp_renew_ipv4_and_get_ipv4(lan)
     domain = "ipv6wan.boardfarm.com"
     output = get_nslookup_data(lan, domain, opts="-q=AAAA")
     assert domain == output["domain_name"], f"nslookup failed for {domain}"
-    assert re.search(AllValidIpv6AddressesRegex, output["domain_ip_addr"][0]), (
-        "DNS server fails to resolve IPv6 address"
-    )
+    assert re.search(
+        AllValidIpv6AddressesRegex, output["domain_ip_addr"][0]
+    ), "DNS server fails to resolve IPv6 address"

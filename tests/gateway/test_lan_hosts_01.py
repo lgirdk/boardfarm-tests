@@ -92,9 +92,9 @@ def test_MVX_TST_35578(device_manager: DeviceManager, bf_logger: TestLogger) -> 
     hostname = get_parameter_values("Device.Hosts.Host.1.HostName", acs, board)[0][
         "value"
     ]
-    assert hostname == lan.get_hostname(), (
-        "Fail: GPV fail and not returns Ethernet client device's host name."
-    )
+    assert (
+        hostname == lan.get_hostname()
+    ), "Fail: GPV fail and not returns Ethernet client device's host name."
 
     bf_logger.log_step(
         "Step 7 : Execute GetParameterValues RPC by providing "

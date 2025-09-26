@@ -30,6 +30,6 @@ def test_LAN_services_HTTP_access_using_IPv4(
         bf_logger.log_step(
             "Step2: From CPE1, access the http server on CPE2 using IPv4 address."
         )
-        assert http_get(lan1, f"-k -m 10 http://{lan2_ip}:{port}"), (
-            "lan1 is unable to reach the HTTP server on lan2 using IPv4 address."
-        )
+        assert http_get(
+            lan1, f"-k -m 10 http://{lan2_ip}:{port}"
+        ), "lan1 is unable to reach the HTTP server on lan2 using IPv4 address."

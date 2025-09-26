@@ -99,9 +99,9 @@ def test_MVX_TST_106953(
         time.sleep(10)
 
         bf_logger.log_step(f"Step3: Execute GPV on {ra_param}")
-        assert get_parameter_values(ra_param, acs, board)[0]["value"] == ra_value, (
-            f"GPV on {ra_param} didn't returned value set in step2"
-        )
+        assert (
+            get_parameter_values(ra_param, acs, board)[0]["value"] == ra_value
+        ), f"GPV on {ra_param} didn't returned value set in step2"
         time.sleep(180)
 
     bf_logger.log_step(
@@ -109,14 +109,14 @@ def test_MVX_TST_106953(
         "announcement is present in IPv6 Router Advertisement message"
     )
     output_lan = parse_icmp_trace(lan, pcap_file, "-V -Y 'icmpv6.type == 134'")
-    assert output_lan, (
-        "Router Advertisement packets are not found in pcap data captured on lan"
-    )
+    assert (
+        output_lan
+    ), "Router Advertisement packets are not found in pcap data captured on lan"
     option_list_to_match = [
         options.strip() if isinstance(options, str) else options
         for options in output_lan
     ]
-    assert f"ICMPv6 Option (MTU : {ra_value})" in option_list_to_match, (
-        "Configured MTU is not present in IPv6 Router Advertisement message"
-    )
+    assert (
+        f"ICMPv6 Option (MTU : {ra_value})" in option_list_to_match
+    ), "Configured MTU is not present in IPv6 Router Advertisement message"
     bf_context.success = True  # type: ignore[attr-defined]
