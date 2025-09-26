@@ -7,8 +7,10 @@ from boardfarm3.templates.wan import WAN
 from boardfarm3.use_cases.networking import start_http_server
 from boardfarm3.use_cases.online_usecases import is_wan_accessible_on_client
 from pytest_boardfarm3.lib.test_logger import TestLogger
+from lib.decorators import requirement
 
 
+@requirement("UC-12346", "Main Success Scenario")
 @pytest.mark.env_req({"environment_def": {"board": {"lan_clients": [{}]}}})
 def test_LAN_to_WAN_IPv4_connectivity(
     bf_logger: TestLogger,
