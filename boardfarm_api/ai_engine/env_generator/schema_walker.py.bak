@@ -1,0 +1,348 @@
+"""Walk a JSON Schema to generate env_config, and LLM prompts."""
+
+import json
+from copy import deepcopy
+from dataclasses import dataclass, field
+from pathlib import Path
+from typing import Any
+
+import jsonschema
+
+
+def load_schema(schema_path: str) -> dict:
+    """Load schema from directory or file."""
+    p = Path(schema_path)
+    if p.is_dir():
+        p = p / "schema.json"
+    return json.loads(p.read_text())
+
+
+# --- Generate max env_config from schema ---
+
+
+class RefResolver:
+    """Resolves referenes ($refs) s."""
+
+    def __init__(self, definitions: dict, defs: dict):
+        """Resolver initializatinos"""
+        self.definitions = definitions
+        self.defs = defs
+
+    def resolve(self, ref: str) -> Any:
+        """Resolves the actual value to the reference"""
+        if not ref.startswith("#"):
+            raise ValueError(
+                f"the reference {ref} provided is from a different file cannot be parsed"
+            )
+
+        ref_path = ref.lstrip("#").lstrip("/")
+        if not ref_path.startswith("definitions") and not ref_path.startswith("$defs"):
+            raise ValueError(f"wrong way to define $refs {ref}")
+
+        ref_keys = ref_path.split("/")
+        res_definitions = (
+            self.definitions if ref_keys[0] == "definitions" else self.defs
+        )
+
+        for key in ref_keys[1:]:
+            try:
+                res_definitions = res_definitions[key]
+            except KeyError:
+                raise ValueError(f"ref '{ref}' - key '{key}' not found in definitions")
+        return res_definitions
+
+
+@dataclass
+class EnumEntry:
+    type_supported: str | list[str]
+    values: list[Any]
+    name: str
+
+
+@dataclass
+class EnvDefSchema:
+    env_def: dict = field(default_factory=dict)
+    enums: list[EnumEntry] = field(default_factory=list)
+
+
+class EnvGenerator:
+    def __init__(self, schema: dict):
+        self._schema = schema
+        self._env_generated = False
+        self.env_def_schema = schema.get("properties", {}).get("environment_def", {})
+        global_definitions = schema.get("definitions", {})
+        global_defs_new_style = schema.get("$defs", {})
+        self._ref_resolver = RefResolver(global_definitions, global_defs_new_style)
+        self._enums: list[EnumEntry] = []
+
+    @property
+    def schema(self):
+        return self._schema
+
+    def generate_env_from_schema(self) -> EnvDefSchema:
+        """Walk schema and generate env_config with ALL field.THIS PROVIDES TE SHAPE"""
+        env_def = self._walk_object(self._schema)
+        return EnvDefSchema(env_def=env_def, enums=self._enums)
+
+    def _walk_node(self, node: dict, node_name: str) -> Any:
+        """Walk a single schema node and produce a value."""
+        # from rich import print
+        # print(node)
+        # if node is None:
+        #     breakpoint()
+
+        if "$ref" in node:
+            ref = node["$ref"]
+            resolve_ref = self._ref_resolver.resolve(ref)
+            # print(ref)
+            # print("================================================================        ", resolve_ref)
+            return self._walk_node(resolve_ref, node_name)
+
+        if "const" in node:
+            return node["const"]
+
+        if "default" in node:
+            return deepcopy(node["default"])
+
+        if "enum" in node:
+            ty = node.get("type", "mixed")
+            en = node["enum"]
+            self._enums.append(EnumEntry(name=node_name, type_supported=ty, values=en))
+            return f"SEE ENUM SECTION : {node_name}"
+
+        node_type = node.get("type")
+
+        if node_type == "object":
+            return self._walk_object(node, node_name)
+        elif node_type == "array":
+            return self._walk_array(node, node_name)
+        elif node_type == "string":
+            return ""
+        elif node_type == "boolean":
+            return False
+        elif node_type == "integer":
+            return 0
+        elif node_type == "number":
+            return 0.0
+
+        return None
+
+    def _walk_object(self, node: dict, root_name: str = "") -> dict:
+        """Walk an object schema node."""
+        result = {}
+        props = node.get("properties", {})
+        for key, prop_schema in props.items():
+            if root_name:
+                path_name = f"{root_name}.{key}"
+            else:
+                path_name = f"{key}"
+            print("============================================ ", key)
+            result[key] = self._walk_node(prop_schema, path_name)
+        return result
+
+    def _walk_array(self, node: dict, node_name: str) -> list:
+        """Walk an array schema node. Generate maxItems entries."""
+        items_schema = node.get("items", {})
+        if isinstance(items_schema, list):
+            tuple_validation_list = []
+            for item in items_schema:
+                tuple_validation_list.append(self._walk_node(item, node_name))
+            return tuple_validation_list
+        elif isinstance(items_schema, dict):
+            item = self._walk_node(items_schema, node_name)
+            return [item]
+
+
+def validate_env_config(env_config: dict, schema: dict) -> list[str]:
+    """Validate a generated env_config against the JSON Schema."""
+    errors = []
+    validator = jsonschema.Draft7Validator(schema)
+    for error in sorted(validator.iter_errors(env_config), key=lambda e: list(e.path)):
+        breakpoint()
+        path = ".".join(str(p) for p in error.absolute_path) or "(root)"
+        errors.append(f"{path}: {error.message}")
+    return errors
+
+
+# --- Generate env_req ---
+
+
+def generate_env_req(reqs: dict, schema: dict) -> dict:
+    """Generate @pytest.mark.env_req dict."""
+    board_req: dict[str, Any] = {}
+
+    mode = reqs.get("board", {}).get("eRouter_Provisioning_mode")
+    if mode:
+        board_req["eRouter_Provisioning_mode"] = [mode]
+
+    lan_count = reqs.get("board", {}).get("lan_clients", 0)
+    if isinstance(lan_count, int) and lan_count > 0:
+        board_req["lan_clients"] = [{} for _ in range(lan_count)]
+
+    title = schema.get("title")
+    if title:
+        board_req["model"] = [title]
+
+    env_req: dict[str, Any] = {"environment_def": {"board": board_req}}
+    for feat_name in reqs.get("features", {}):
+        env_req["environment_def"][feat_name] = {}
+
+    return env_req
+
+
+# Build LLM prompt from schema
+
+
+def build_llm_prompt(precondition: str, schema: dict) -> str:
+    """Build LLM prompt for env_config generation from precondition only. Designed for small models (7B+)."""
+    title = schema.get("title", "unknown")
+    env_obj = EnvGenerator(schema).generate_env_from_schema()
+    from rich import print
+
+    for env in env_obj.enums:
+        print(env.name)
+    breakpoint()
+    max_env_json_str = json.dumps(env_obj.env_def, indent=2)
+    next_to_board = {
+        key: val
+        for key, val in env_obj.env_def["environment_def"].items()
+        if key != "board"
+    }
+
+    enum_lines = [f"{en.name} : {en.values}" for en in env_obj.enums]
+
+    if enum_lines:
+        enum_values = f"""ENUM SECTION:
+        For every field marked "SEE ENUM SECTION":
+        1. Find the match in the list below.
+        2. Select exactly one value from the list. Case-sensitive.
+        3. Replace the entire placeholder with the selected value.
+            Never leave "SEE ENUM SECTION..." in the output.\n\n{"\n".join(enum_lines)}"""
+
+    next_to_board_rule = ""
+    if next_to_board:
+        key_list = ", ".join(f'"{k}"' for k in next_to_board)
+        next_to_board_rule = f"5.Include keys next to board ( {key_list} ) only if implied or inferred by the precondition"
+    # Build a concrete example showing prunin'
+    example_env = {
+        "environment_def": {
+            "board": {
+                "model": title,
+                "eRouter_Provisioning_mode": "ipv4",
+                "lan_clients": [{}],
+            }
+        }
+    }
+    if next_to_board:
+        first_key = next(iter(next_to_board))
+        example_env["environment_def"][first_key] = {}
+    example_output = json.dumps(example_env, indent=2)
+    example_feature = f", {next(iter(next_to_board))} needed" if next_to_board else ""
+
+    precond_block = ""
+    if precondition:
+        precond_block = f"{precondition}"
+
+    # TODO need to chekc and optimize more for smaller models
+    # can use SEE ENUM : ALL | THE | ENUMS| HERE | ITSELF !!
+
+    return f"""
+You are a JSON config generator for network device tests.
+Your job: read the precondition understand the intent and produce a minimal valid JSON environment config.
+
+Use ONLY keys from the AVAILABLE REFERENCE STRUCTURE. Do not invent keys. 
+Do not copy values from the reference. Infer values from the precondition.
+
+Rules:
+1. Always include these keys: environment_def, board, model, eRouter_Provisioning_mode
+2. Include other keys only if implied or required by the precondition
+3. Do not invent keys, only use keys from the AVAILABLE REFERENCE STRUCTURE shape. 
+4. Include nested keys only to the depth required by the precondition; omit any nested keys not explicitly required.Stop when the precondition is satisfied.
+{next_to_board_rule}
+6. Arrays: number of elements = as required by precondition.
+7. If a field says SEE ENUM SECTION, pick exactly one value from ENUM section only if the key is included. Do not add keys just for SEE ENUM
+8. Do not invent values or assign unrelated objects.
+10. If a property in the precondition has no representation in the reference structure, omit it. Map to implicit keys if applicable.
+11. Produce minimal valid JSON, nothing else. Output starts with {{ and ends with }}.
+12. Verify the output follows all rules above.
+
+AVAILABLE REFERENSE STRUCTURE (use keys only, ignore values. Do not invent keys.)
+
+{max_env_json_str}
+
+{enum_values if enum_lines else ""}
+
+YOUR TASK:
+Read the Example and precondition below. 
+Produce a JSON keeping ONLY the keys relevant ,whether stated, implied, or reasonably inferred.
+populate the values to the keys if provided in precondition ,if not just keep the shape
+Remove everything not relevant.
+
+EXAMPLE:
+Given a precondition that implies ipv4 provisioning, one ethernet client{example_feature}:
+{example_output}
+Everything not relevant to the test environment was removed.
+
+NOW YOUR TURN:
+
+Precondition:
+board model {title}
+{precond_block}
+
+CRITICAL RULE: Output ONLY valid JSON. No explanation, no markdown, no comments. Start with {{ and end with }}"""
+
+
+if __name__ == "__main__":
+    schema = load_schema(
+        "/home/ahazra/workspace/claude_test/env_generator/profiles/demo_device/schema.json"
+    )
+    # print(json.dumps(generate_max_env(schema), indent=2))
+    precond = """
+    eorute mode dual
+    should have two lan clients  and 1 wlan client with 5gh band
+    tr69 should provisoin spv with device.abc.xyz value 165242
+    add one sku abc
+    """
+
+    print(build_llm_prompt(precond, schema))
+
+    env_onfig = """{
+"environment_def": {
+"board": {
+"model": "DEMO_X1",
+"eRouter_Provisioning_mode": "dual",
+"lan_clients": [
+{},
+{}
+],
+"wifi_clients": [
+{
+"band": "5",
+"network": "private",
+"protocol": "802.11ac",
+"authentication": "WPA-PSK"
+},
+{
+"band": "2.4",
+"network": "private",
+"protocol": "802.11ac",
+"authentication": "WPA-PSK"
+}
+]
+},
+"tr-069": {
+"provisioning": [
+{
+"SPV": [
+{
+"device.lgi.rado": 12335
+}
+]
+}
+]
+}
+}
+}"""
+    env = json.loads(env_onfig)
+    breakpoint()
+    validate_env_config(env, schema)

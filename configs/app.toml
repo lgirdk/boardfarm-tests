@@ -1,0 +1,25 @@
+[llm.sonnet]
+provider = "anthropic" # Provider is basically where the model is runnign it only for informations
+model = "claude-sonnet-4-5"
+api_key_env = "ANTHROPIC_API_KEY" 
+
+[llm.custome_gpt4o]
+provider = "openai"
+endpoint = "http://100.78.76.21:4000"
+model = "gpt-4o"
+api_key_env = "CUSTOME_GPT_API_KEY" 
+
+[llm.gemma4_26B_8bit]
+provider = "google"
+endpoint = "https://cvntpj0b9cuebc-8000.proxy.runpod.net/v1/"
+model = "gemma4:26b-a4b-it-q8_0"
+# api_key_env = "CUSTOME_GPT_API_KEY" 
+
+
+
+[search_store]
+store_config_path = "./configs/search_store/store_config.toml"
+
+[codegen]
+pipeline_config_path = "./configs/codegen/codegen.toml"
+search_settings_path = "./configs/codegen/search.toml"

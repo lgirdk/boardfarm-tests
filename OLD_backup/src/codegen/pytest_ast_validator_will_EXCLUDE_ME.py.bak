@@ -1,0 +1,749 @@
+"""AST-based validator for generated pytest test code.
+
+Validates generated code against the stub registry to catch structural errors
+deterministically — wrong imports, invented functions, missing fixtures,
+signature mismatches — before they become runtime failures.
+
+This is pytest-oriented. It knows about fixture patterns, markers, and
+framework import conventions. All domain-specific knowledge is injected
+via ValidatorConfig — the validator engine itself is framework-agnostic.
+"""
+
+from __future__ import annotations
+
+import ast
+import logging
+from dataclasses import dataclass, field
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from src.search_store.utils import StubCodeRegistry
+
+LOGGER = logging.getLogger(__name__)
+
+
+# ---------------------------------------------------------------------------
+# Configuration — domain-specific, injected by project owner
+# ---------------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class ValidatorConfig:
+    """Domain-specific validation rules.
+
+    The codegen engine defines this contract.
+    The project owner fills in the values during onboarding.
+
+    Example (boardfarm):
+        ValidatorConfig(
+            fixture_names=frozenset({"bf_context", "bf_logger", "device_manager", "boardfarm_config"}),
+            fixture_import_module="pytest_boardfarm3.boardfarm_fixtures",
+            framework_imports={
+                "boardfarm3.lib.device_manager": {"DeviceManager"},
+                "boardfarm3.exceptions": {"TeardownError"},
+                ...
+            },
+            type_hint_import_map={
+                "DeviceManager": "from boardfarm3.lib.device_manager import DeviceManager",
+                ...
+            },
+            fixture_name="setup_teardown",
+            fixture_context_param="bf_context",
+            step_logger_object="bf_logger",
+            step_logger_method="log_step",
+            env_req_marker="env_req",
+        )
+    """
+
+    # Fixture names that are function params, never imported
+    fixture_names: frozenset[str] = frozenset()
+
+    # Module from which fixtures should NEVER be imported
+    # e.g., "pytest_boardfarm3.boardfarm_fixtures"
+    fixture_import_module: str | None = None
+
+    # Always-valid imports not in stub index (framework base modules, stdlib)
+    # Maps module_path → set of valid importable names
+    framework_imports: dict[str, set[str]] = field(
+        default_factory=lambda: {
+            "pytest": {"pytest"},
+            "collections.abc": {"Iterator"},
+            "ipaddress": {"IPv4Address", "IPv6Address", "AddressValueError"},
+            "re": {"re"},
+        }
+    )
+
+    # Type hint names that need explicit imports
+    # Maps name → full import statement for the fix suggestion
+    type_hint_import_map: dict[str, str] = field(default_factory=dict)
+
+    # Fixture pattern configuration
+    fixture_name: str = "setup_teardown"
+    fixture_context_param: str = (
+        "bf_context"  # param needed in fixture for teardown flags
+    )
+
+    # Step logging configuration
+    step_logger_object: str = "bf_logger"  # e.g., bf_logger.log_step()
+    step_logger_method: str = "log_step"
+
+    # Marker for environment requirements when preconditions exist
+    env_req_marker: str = "env_req"
+
+    # Categories to include in signature validation
+    signature_categories: frozenset[str] = frozenset({"use_cases", "lib_utils"})
+
+
+# ---------------------------------------------------------------------------
+# Stdlib modules — not domain-specific, engine can know these
+# ---------------------------------------------------------------------------
+
+_STDLIB_ROOTS = frozenset(
+    {
+        "re",
+        "os",
+        "sys",
+        "json",
+        "time",
+        "ipaddress",
+        "collections",
+        "typing",
+        "contextlib",
+        "functools",
+        "pathlib",
+        "dataclasses",
+        "abc",
+        "io",
+        "math",
+        "copy",
+        "itertools",
+        "operator",
+    }
+)
+
+
+# ---------------------------------------------------------------------------
+# Data structures
+# ---------------------------------------------------------------------------
+
+
+@dataclass
+class ValidationError:
+    """Single validation error with location and fix suggestion."""
+
+    line: int | None
+    category: str
+    message: str
+    suggestion: str | None = None
+
+    def __str__(self) -> str:
+        loc = f"Line {self.line}: " if self.line else ""
+        sug = f" Suggestion: {self.suggestion}" if self.suggestion else ""
+        return f"[{self.category}] {loc}{self.message}{sug}"
+
+
+@dataclass
+class ValidationReport:
+    """Result of AST validation."""
+
+    errors: list[ValidationError] = field(default_factory=list)
+
+    @property
+    def is_valid(self) -> bool:
+        return len(self.errors) == 0
+
+    @property
+    def error_count(self) -> int:
+        return len(self.errors)
+
+    def errors_by_category(self) -> dict[str, list[ValidationError]]:
+        grouped: dict[str, list[ValidationError]] = {}
+        for err in self.errors:
+            grouped.setdefault(err.category, []).append(err)
+        return grouped
+
+    def format_for_llm(self) -> str:
+        """Format errors as a numbered list for the LLM fix prompt."""
+        if not self.errors:
+            return "No errors found."
+        lines = []
+        for i, err in enumerate(self.errors, 1):
+            loc = f"Line {err.line}: " if err.line else ""
+            lines.append(f"{i}. [{err.category}] {loc}{err.message}")
+            if err.suggestion:
+                lines.append(f"   Fix: {err.suggestion}")
+        return "\n".join(lines)
+
+
+# ---------------------------------------------------------------------------
+# Import map builder
+# ---------------------------------------------------------------------------
+
+
+def build_import_map(registry: StubCodeRegistry) -> dict[str, set[str]]:
+    """Build a mapping: import_module_path → {valid_names} from stub registry.
+
+    Example:
+        'boardfarm3_docsis.use_cases.docsis' → {'add_tlvs_to_bootfile', ...}
+        'boardfarm3.templates.lan' → {'LAN'}
+    """
+    import_map: dict[str, set[str]] = {}
+
+    for key in registry.index_registry:
+        parsed = registry.parse_key(key)
+        file_path_parts = parsed.file_key.split(parsed.file_path_sep)
+        import_path = f"{parsed.repo}.{'.'.join(file_path_parts)}".strip(".")
+        import_map.setdefault(import_path, set()).add(parsed.callable_name)
+
+    return import_map
+
+
+def build_signature_map(
+    registry: StubCodeRegistry,
+    categories: frozenset[str],
+) -> dict[str, list[str]]:
+    """Build mapping: function_name → list of parameter names.
+
+    Only includes top-level entries (not methods) from specified categories.
+    """
+    sig_map: dict[str, list[str]] = {}
+
+    for key, entry in registry.index_registry.items():
+        parsed = registry.parse_key(key)
+        if parsed.member_type is not None:
+            continue
+        if parsed.category not in categories:
+            continue
+
+        signature = entry.get("signature", "")
+        if not signature:
+            continue
+
+        param_names = _extract_param_names(signature)
+        if param_names:
+            sig_map[parsed.callable_name] = param_names
+
+    return sig_map
+
+
+def _extract_param_names(signature: str) -> list[str]:
+    """Extract parameter names from a signature string.
+
+    Handles: '(param1: type, param2: type = default, *args, **kwargs)'
+    Returns: ['param1', 'param2'] (excludes self, *args, **kwargs)
+    """
+    sig = signature.strip()
+    if sig.startswith("("):
+        sig = sig[1:]
+    if sig.endswith(")"):
+        sig = sig[:-1]
+    # Handle return type annotation in signature
+    if "->" in sig:
+        sig = sig.rsplit("->", 1)[0].strip().rstrip(")")
+
+    params = []
+    for part in sig.split(","):
+        part = part.strip()
+        if not part:
+            continue
+        name = part.split(":")[0].split("=")[0].strip()
+        if name in ("self", "cls") or name.startswith("*"):
+            continue
+        if name:
+            params.append(name)
+
+    return params
+
+
+# ---------------------------------------------------------------------------
+# AST Validator
+# ---------------------------------------------------------------------------
+
+
+class ASTValidator:
+    """Validates generated pytest code against the stub registry.
+
+    All domain-specific knowledge comes from ValidatorConfig.
+    The validator engine is framework-agnostic.
+
+    Checks performed:
+        1. Syntax — can ast.parse() succeed?
+        2. Fixture imports — never import from the fixtures module
+        3. Import path validation — module path + name exists in stubs?
+        4. Type hint imports — used in annotations but not imported?
+        5. Fixture pattern — Iterator, yield, context param
+        6. Step logging — log calls match test step count
+        7. env_req marker — present when preconditions exist
+        8. Function call signatures — parameter names match stubs
+    """
+
+    def __init__(self, registry: StubCodeRegistry, config: ValidatorConfig):
+        self._registry = registry
+        self._config = config
+        self._import_map = build_import_map(registry)
+        self._signature_map = build_signature_map(registry, config.signature_categories)
+
+    def validate(
+        self,
+        code: str,
+        num_test_steps: int = 0,
+        has_preconditions: bool = False,
+    ) -> ValidationReport:
+        """Validate generated test code.
+
+        Args:
+            code: the generated Python test code as a string
+            num_test_steps: number of test steps (for step log count check)
+            has_preconditions: whether the test has preconditions (for env_req check)
+
+        Returns:
+            ValidationReport with all found errors
+        """
+        report = ValidationReport()
+
+        # Check 1: Syntax
+        tree = self._check_syntax(code, report)
+        if tree is None:
+            return report
+
+        # Check 2: Fixture import violation
+        if self._config.fixture_import_module:
+            self._check_fixture_imports(tree, report)
+
+        # Check 3: Import path validation
+        imported_names = self._check_import_paths(tree, report)
+
+        # Check 4: Type hint imports
+        if self._config.type_hint_import_map:
+            self._check_type_hint_imports(tree, imported_names, report)
+
+        # Check 5: Fixture pattern
+        self._check_fixture_pattern(tree, report)
+
+        # Check 6: Step logging
+        if num_test_steps > 0:
+            self._check_step_logging(tree, num_test_steps, report)
+
+        # Check 7: env_req marker
+        if has_preconditions:
+            self._check_env_req_marker(tree, report)
+
+        # Check 8: Function call signatures
+        self._check_call_signatures(tree, imported_names, report)
+
+        return report
+
+    # ------------------------------------------------------------------
+    # Check 1: Syntax
+    # ------------------------------------------------------------------
+    def _check_syntax(self, code: str, report: ValidationReport) -> ast.Module | None:
+        try:
+            return ast.parse(code)
+        except SyntaxError as e:
+            report.errors.append(
+                ValidationError(
+                    line=e.lineno,
+                    category="SYNTAX",
+                    message=f"SyntaxError: {e.msg}",
+                    suggestion="Fix the syntax error and ensure valid Python.",
+                )
+            )
+            return None
+
+    # ------------------------------------------------------------------
+    # Check 2: Fixture import violation
+    # ------------------------------------------------------------------
+    def _check_fixture_imports(
+        self, tree: ast.Module, report: ValidationReport
+    ) -> None:
+        forbidden_module = self._config.fixture_import_module
+        for node in ast.walk(tree):
+            if isinstance(node, ast.ImportFrom) and node.module:
+                if forbidden_module and forbidden_module in node.module:
+                    names = [alias.name for alias in node.names]
+                    report.errors.append(
+                        ValidationError(
+                            line=node.lineno,
+                            category="FIXTURE_IMPORT",
+                            message=(
+                                f"Importing {', '.join(names)} from {node.module}. "
+                                "Fixtures must be function parameters, never imported."
+                            ),
+                            suggestion=(
+                                f"Remove this import. Add {', '.join(names)} as parameters "
+                                "to the test function and/or fixture function signatures."
+                            ),
+                        )
+                    )
+
+    # ------------------------------------------------------------------
+    # Check 3: Import path validation
+    # ------------------------------------------------------------------
+    def _check_import_paths(
+        self, tree: ast.Module, report: ValidationReport
+    ) -> set[str]:
+        imported_names: set[str] = set()
+
+        for node in ast.walk(tree):
+            if isinstance(node, ast.ImportFrom) and node.module:
+                module_path = node.module
+
+                if self._is_known_import(module_path):
+                    for alias in node.names:
+                        imported_names.add(alias.asname or alias.name)
+                    continue
+
+                # Skip fixture module (caught in check 2)
+                if (
+                    self._config.fixture_import_module
+                    and self._config.fixture_import_module in module_path
+                ):
+                    continue
+
+                valid_names = self._resolve_import_module(module_path)
+
+                if valid_names is None:
+                    report.errors.append(
+                        ValidationError(
+                            line=node.lineno,
+                            category="IMPORT",
+                            message=f"Module path '{module_path}' not found in stub registry.",
+                            suggestion=self._suggest_module_path(module_path),
+                        )
+                    )
+                else:
+                    for alias in node.names:
+                        name = alias.name
+                        imported_names.add(alias.asname or name)
+                        if name not in valid_names:
+                            report.errors.append(
+                                ValidationError(
+                                    line=node.lineno,
+                                    category="IMPORT",
+                                    message=(
+                                        f"Name '{name}' not found in module '{module_path}'. "
+                                        f"Available: {', '.join(sorted(valid_names)[:10])}"
+                                    ),
+                                    suggestion=self._suggest_name(name, valid_names),
+                                )
+                            )
+
+            elif isinstance(node, ast.Import):
+                for alias in node.names:
+                    imported_names.add(alias.asname or alias.name)
+
+        return imported_names
+
+    def _is_known_import(self, module_path: str) -> bool:
+        if module_path in self._config.framework_imports:
+            return True
+        root = module_path.split(".")[0]
+        return root in _STDLIB_ROOTS
+
+    def _resolve_import_module(self, module_path: str) -> set[str] | None:
+        if module_path in self._import_map:
+            return self._import_map[module_path]
+
+        # Try partial match — code might use parent path
+        for registry_path, names in self._import_map.items():
+            if registry_path.endswith(f".{module_path.split('.')[-1]}"):
+                if module_path.rsplit(".", 1)[0] in registry_path:
+                    return names
+
+        # Try prefix match
+        matching_names: set[str] = set()
+        for registry_path, names in self._import_map.items():
+            if registry_path.startswith(module_path):
+                matching_names.update(names)
+        return matching_names or None
+
+    def _suggest_module_path(self, wrong_path: str) -> str | None:
+        target_leaf = wrong_path.split(".")[-1] if wrong_path else ""
+        candidates = [p for p in self._import_map if target_leaf in p]
+        if candidates:
+            candidates.sort(key=len)
+            return f"Did you mean: {candidates[0]}?"
+        return None
+
+    def _suggest_name(self, wrong_name: str, valid_names: set[str]) -> str | None:
+        for valid in sorted(valid_names):
+            if (
+                wrong_name.lower() in valid.lower()
+                or valid.lower() in wrong_name.lower()
+            ):
+                return f"Did you mean '{valid}'?"
+        return None
+
+    # ------------------------------------------------------------------
+    # Check 4: Type hint imports
+    # ------------------------------------------------------------------
+    def _check_type_hint_imports(
+        self, tree: ast.Module, imported_names: set[str], report: ValidationReport
+    ) -> None:
+        annotation_names: set[str] = set()
+        for node in ast.walk(tree):
+            if isinstance(node, ast.FunctionDef):
+                if node.returns:
+                    annotation_names.update(
+                        self._extract_annotation_names(node.returns)
+                    )
+                for arg in node.args.args:
+                    if arg.annotation:
+                        annotation_names.update(
+                            self._extract_annotation_names(arg.annotation)
+                        )
+
+        known_hints = set(self._config.type_hint_import_map.keys())
+        for name in annotation_names:
+            if name in known_hints and name not in imported_names:
+                import_stmt = self._config.type_hint_import_map[name]
+                report.errors.append(
+                    ValidationError(
+                        line=None,
+                        category="TYPE_HINT",
+                        message=f"Type hint '{name}' used in annotation but not imported.",
+                        suggestion=f"Add: {import_stmt}",
+                    )
+                )
+
+    def _extract_annotation_names(self, node: ast.expr) -> set[str]:
+        names: set[str] = set()
+        if isinstance(node, ast.Name):
+            names.add(node.id)
+        elif isinstance(node, ast.Subscript):
+            names.update(self._extract_annotation_names(node.value))
+            names.update(self._extract_annotation_names(node.slice))
+        elif isinstance(node, ast.Tuple):
+            for elt in node.elts:
+                names.update(self._extract_annotation_names(elt))
+        elif isinstance(node, ast.BinOp):
+            names.update(self._extract_annotation_names(node.left))
+            names.update(self._extract_annotation_names(node.right))
+        return names
+
+    # ------------------------------------------------------------------
+    # Check 5: Fixture pattern
+    # ------------------------------------------------------------------
+    def _check_fixture_pattern(
+        self, tree: ast.Module, report: ValidationReport
+    ) -> None:
+        fixture_func = None
+        test_func = None
+        fixture_name = self._config.fixture_name
+        context_param = self._config.fixture_context_param
+
+        for node in ast.iter_child_nodes(tree):
+            if isinstance(node, ast.FunctionDef):
+                if node.name == fixture_name:
+                    fixture_func = node
+                elif node.name.startswith("test_"):
+                    test_func = node
+
+        if fixture_func is None:
+            return  # no fixture — fine for read-only tests
+
+        # 5a: @pytest.fixture() decorator
+        if not any(
+            self._is_pytest_fixture_decorator(d) for d in fixture_func.decorator_list
+        ):
+            report.errors.append(
+                ValidationError(
+                    line=fixture_func.lineno,
+                    category="FIXTURE_PATTERN",
+                    message=f"'{fixture_name}' function missing @pytest.fixture() decorator.",
+                    suggestion="Add @pytest.fixture() decorator above the function.",
+                )
+            )
+
+        # 5b: Iterator return type
+        if fixture_func.returns:
+            annotation_text = ast.dump(fixture_func.returns)
+            if "Iterator" not in annotation_text:
+                report.errors.append(
+                    ValidationError(
+                        line=fixture_func.lineno,
+                        category="FIXTURE_PATTERN",
+                        message="Fixture return type should use Iterator for teardown support.",
+                        suggestion="Change return type to Iterator[tuple[...]].",
+                    )
+                )
+
+        # 5c: yield statement
+        has_yield = any(isinstance(n, ast.Yield) for n in ast.walk(fixture_func))
+        if not has_yield:
+            report.errors.append(
+                ValidationError(
+                    line=fixture_func.lineno,
+                    category="FIXTURE_PATTERN",
+                    message="Fixture has no yield statement. Teardown code after yield won't execute.",
+                    suggestion="Add 'yield <devices>' before the teardown section.",
+                )
+            )
+
+        # 5d: context param in fixture
+        fixture_params = {arg.arg for arg in fixture_func.args.args}
+        if context_param and context_param not in fixture_params:
+            report.errors.append(
+                ValidationError(
+                    line=fixture_func.lineno,
+                    category="FIXTURE_PATTERN",
+                    message=f"Fixture missing '{context_param}' parameter. Needed for teardown flags.",
+                    suggestion=f"Add '{context_param}' to fixture parameters.",
+                )
+            )
+
+        # 5e: test function accepts fixture
+        if test_func:
+            test_params = {arg.arg for arg in test_func.args.args}
+            if fixture_name not in test_params:
+                report.errors.append(
+                    ValidationError(
+                        line=test_func.lineno,
+                        category="FIXTURE_PATTERN",
+                        message=f"Test function doesn't accept '{fixture_name}' fixture as parameter.",
+                        suggestion=f"Add '{fixture_name}' to the test function parameters.",
+                    )
+                )
+
+    def _is_pytest_fixture_decorator(self, node: ast.expr) -> bool:
+        if isinstance(node, ast.Call):
+            return self._is_pytest_fixture_decorator(node.func)
+        if isinstance(node, ast.Attribute):
+            return (
+                isinstance(node.value, ast.Name)
+                and node.value.id == "pytest"
+                and node.attr == "fixture"
+            )
+        return False
+
+    # ------------------------------------------------------------------
+    # Check 6: Step logging
+    # ------------------------------------------------------------------
+    def _check_step_logging(
+        self, tree: ast.Module, num_test_steps: int, report: ValidationReport
+    ) -> None:
+        logger_obj = self._config.step_logger_object
+        logger_method = self._config.step_logger_method
+
+        test_func = None
+        for node in ast.iter_child_nodes(tree):
+            if isinstance(node, ast.FunctionDef) and node.name.startswith("test_"):
+                test_func = node
+                break
+
+        if test_func is None:
+            report.errors.append(
+                ValidationError(
+                    line=None,
+                    category="STEP_LOG",
+                    message="No test function found (function name must start with 'test_').",
+                    suggestion=None,
+                )
+            )
+            return
+
+        log_count = 0
+        for node in ast.walk(test_func):
+            if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute):
+                if (
+                    node.func.attr == logger_method
+                    and isinstance(node.func.value, ast.Name)
+                    and node.func.value.id == logger_obj
+                ):
+                    log_count += 1
+
+        if log_count < num_test_steps:
+            report.errors.append(
+                ValidationError(
+                    line=test_func.lineno,
+                    category="STEP_LOG",
+                    message=(
+                        f"Test has {num_test_steps} steps but only "
+                        f"{log_count} {logger_obj}.{logger_method}() calls."
+                    ),
+                    suggestion=f"Add {logger_obj}.{logger_method}() for each of the {num_test_steps} steps.",
+                )
+            )
+
+    # ------------------------------------------------------------------
+    # Check 7: env_req marker
+    # ------------------------------------------------------------------
+    def _check_env_req_marker(self, tree: ast.Module, report: ValidationReport) -> None:
+        marker_name = self._config.env_req_marker
+
+        test_func = None
+        for node in ast.iter_child_nodes(tree):
+            if isinstance(node, ast.FunctionDef) and node.name.startswith("test_"):
+                test_func = node
+                break
+
+        if test_func is None:
+            return
+
+        has_marker = any(
+            self._is_pytest_marker(d, marker_name) for d in test_func.decorator_list
+        )
+
+        if not has_marker:
+            report.errors.append(
+                ValidationError(
+                    line=test_func.lineno,
+                    category="ENV_REQ",
+                    message=f"Test has preconditions but missing @pytest.mark.{marker_name} decorator.",
+                    suggestion=f"Add @pytest.mark.{marker_name}(...) with the environment requirements.",
+                )
+            )
+
+    def _is_pytest_marker(self, node: ast.expr, marker_name: str) -> bool:
+        target = node
+        if isinstance(target, ast.Call):
+            target = target.func
+        if isinstance(target, ast.Attribute) and target.attr == marker_name:
+            if isinstance(target.value, ast.Attribute) and target.value.attr == "mark":
+                if isinstance(target.value.value, ast.Name):
+                    return target.value.value.id == "pytest"
+        return False
+
+    # ------------------------------------------------------------------
+    # Check 8: Function call signatures
+    # ------------------------------------------------------------------
+    def _check_call_signatures(
+        self, tree: ast.Module, imported_names: set[str], report: ValidationReport
+    ) -> None:
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.Call):
+                continue
+            if not isinstance(node.func, ast.Name):
+                continue
+
+            func_name = node.func.id
+            if func_name not in self._signature_map:
+                continue
+            if func_name not in imported_names:
+                continue
+
+            valid_params = self._signature_map[func_name]
+            for keyword in node.keywords:
+                if keyword.arg is None:
+                    continue
+                if keyword.arg not in valid_params:
+                    report.errors.append(
+                        ValidationError(
+                            line=node.lineno,
+                            category="SIGNATURE",
+                            message=(
+                                f"Unknown parameter '{keyword.arg}' in call to '{func_name}()'. "
+                                f"Valid parameters: {', '.join(valid_params)}"
+                            ),
+                            suggestion=self._suggest_param(keyword.arg, valid_params),
+                        )
+                    )
+
+    def _suggest_param(self, wrong_param: str, valid_params: list[str]) -> str | None:
+        for valid in valid_params:
+            if (
+                wrong_param.lower() in valid.lower()
+                or valid.lower() in wrong_param.lower()
+            ):
+                return f"Did you mean '{valid}'?"
+        return None

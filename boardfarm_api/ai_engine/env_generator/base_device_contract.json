@@ -1,0 +1,11 @@
+{
+  "_comments": "Boardfarm base device contract — hardcoded in boardfarm core. Every env_config MUST have these.",
+
+  "board": {
+    "model": "",
+    "eRouter_Provisioning_mode": [],
+    "SKU": []
+  },
+
+  "features": {}
+}

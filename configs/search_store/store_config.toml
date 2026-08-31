@@ -1,0 +1,50 @@
+# ============================================================================
+# SEARCH STORE CONFIGURATION
+# Controls the registry and embedding model used for search indexing
+# ============================================================================
+
+# ----------------------------------------------------------------------------
+# STUB REGISTRY
+# Source data and artifact storage for the stub index
+# ----------------------------------------------------------------------------
+[store]
+artifacts_path = "./artifacts"                       # Base directory for all generated files internal
+
+[store.stub_registry]
+stub_index_path = "./artifacts/stubs_index.json"    # Raw stub index built from codebase
+
+# ----------------------------------------------------------------------------
+# AVAILABLE ENCODERS
+# All encoder definitions live here. Consumers reference by name.
+# Currently used by:
+#   - codegen (search.toml) → encoder = "bge_code"
+# ----------------------------------------------------------------------------
+
+[encoders.bge_base]
+encoder_type = "sentence_transformer"
+model_path = "./.models/bge-base-en-v1.5"
+local_files_only = true
+query_prefix = "Represent this sentence for searching relevant passages: "
+passage_prefix = ""
+
+[encoders.bge_small]
+encoder_type = "sentence_transformer"
+model_path = "./.models/bge-small-en-v1.5"
+local_files_only = true
+batch_size = 32
+query_prefix = "Represent this sentence for searching relevant passages: "
+passage_prefix = ""
+
+[encoders.openai_small]
+encoder_type = "openai"
+model = "text-embedding-3-small"
+api_key_env = "OPENAI_API_KEY"
+
+# ----------------------------------------------------------------------------
+# FILTERS
+# ----------------------------------------------------------------------------
+
+[filters]
+# Order defines priority: first = highest
+repo_priority_order = ["boardfarm-docsis", "boardfarm"]
+exclude_repos = ["boardfarm-lgi-utils","boardfarm-lgi-shared"]

@@ -1,0 +1,91 @@
+
+# ============================================================================
+# CODEGEN PIPELINE CONFIGURATION
+# ============================================================================
+#
+# STAGES — configure which LLM and profile each stage uses.
+# LLM names must match keys defined in app.toml [llm.*].
+#
+# Available LLMs (from app.toml):
+#   - sonnet       → anthropic / claude-sonnet-4-5
+#   - custome_gpt4o → openai   / gpt-4o  (custom endpoint)
+#   - qwen_27B     → openai   / qwen (custom endpoint)
+#
+# Adding a new LLM: define it in app.toml [llm.*] first,
+# then reference it here by that key name.
+#
+# Stages — LLm stages for generation
+# ============================================================
+
+domain_setup_entrypoint = "domain.boardfarm.domain_setup:codegen_setup"
+
+[stages.reasoning]
+llm = "sonnet"
+profile = "default"
+
+[stages.search]
+llm = "sonnet"
+profile = "default"
+
+[stages.generation]
+llm = "sonnet"
+profile = "default"
+
+# ============================================================
+# Profiles settings
+# ============================================================
+[profiles.default]
+description = "Works with Claude/Sonnet"
+compatible_models = ["claude-sonnet-4-5", "claude-opus"]  # this can be inforamative and also a chekc my be ?
+prompt_variant = "standard"
+
+[profiles.default.reasoning]
+temperature = 0.5
+max_tokens = 1536
+
+[profiles.default.search]
+temperature = 0.4
+max_tokens = 2048
+
+[profiles.default.generation]
+temperature = 0.4
+max_tokens = 4096
+
+
+[profiles.gpt4_class]
+description = "Tuned for GPT-4 class models"
+compatible_models = ["gpt-4", "gpt-4-turbo", "gpt-4o"]
+prompt_variant = "compact"
+
+[profiles.gpt4_class.reasoning]
+temperature = 0.7
+max_tokens = 1536
+
+[profiles.gpt4_class.search]
+temperature = 0.4
+max_tokens = 2048
+
+[profiles.gpt4_class.generation]
+temperature = 0.4
+max_tokens = 4096
+
+
+# ================================================
+# EXAMPLES FOR ADDING A CUSTOME PROFILE OR CLASS 
+# UNCOMMENT AND KEEP ADDING YOU OWN 
+# *************************************************
+# [profiles.my_cheap_profile]
+# description = "Fast and cheap for testing"
+# compatible_models = ["claude-haiku"]
+
+# [profiles.my_cheap_profile.reasoning]
+# temperature = 0.3
+# max_tokens = 512
+
+# [profiles.my_cheap_profile.search]
+# temperature = 0.2
+# max_tokens = 512
+
+# [profiles.my_cheap_profile.generation]
+# temperature = 0.3
+# max_tokens = 1024

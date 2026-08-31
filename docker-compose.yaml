@@ -1,0 +1,43 @@
+services:
+  boardfarm-ai:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        HTTPS_PROXY: ${HTTPS_PROXY:-}
+        HTTP_PROXY: ${HTTP_PROXY:-}
+        NO_PROXY: ${NO_PROXY:-}
+        APP_USER_ID: ${APP_USER_ID:-1000}     # from deployer's .env, default 1000
+        APP_GROUP_ID: ${APP_GROUP_ID:-1000}
+    image: boardfarm-ai:latest
+    container_name: boardfarm-ai
+
+    env_file:
+      - .env                       # ANTHROPIC_API_KEY, CODEGEN_API_KEY, proxies, LOG_LEVEL
+    environment:                   # re-inject runtime proxy for LLM calls
+      HTTPS_PROXY: ${HTTPS_PROXY:-}
+      HTTP_PROXY: ${HTTP_PROXY:-}
+      NO_PROXY: ${NO_PROXY:-}
+      https_proxy: ${HTTPS_PROXY:-}
+      http_proxy: ${HTTP_PROXY:-}
+      no_proxy: ${NO_PROXY:-}
+
+    volumes:
+      # host path : container path : mode
+      - ./.models:/app/.models:ro
+      - ./artifacts:/app/artifacts
+      - ./configs:/app/configs:ro
+
+    ports:
+      - "9090:8080"                # host:container
+
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 5G
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"

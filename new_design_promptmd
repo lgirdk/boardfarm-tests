@@ -1,0 +1,110 @@
+# Build the full platform frontend (mock-first)
+
+## Mission
+
+Evolve the existing React frontend in `frontend/` into the complete UI for our AI test-automation platform. The backend for the new features does not exist yet — every new capability must work end-to-end against mock clients that simulate real behavior, and must be swappable to real HTTP clients later by flipping `VITE_USE_BACKEND=1`, with zero component changes. The mock layer you build IS the API contract we will implement on the backend, so design it as carefully as production code.
+
+## Step 0 — explore before writing anything
+
+Read these first and conform to the conventions you find. Do not invent parallel patterns for things that already have a pattern:
+
+1. `frontend/docs/FRONTEND_GUIDE.md`
+2. `frontend/docs/BACKEND_API_CONTRACT.md`
+3. `frontend/src/lib/persistence/` — the PersistenceAdapter seam (Mock/Http)
+4. `frontend/src/lib/registries/` — RegistriesClient seam + React context
+5. `frontend/src/app/` — shell, sidebar, app registry, routing
+6. `frontend/src/modules/codegen/` and `frontend/src/modules/config/`
+7. `frontend/src/schemas/` — field descriptor system
+8. `frontend/src/lib/run/` — the useRun hook
+
+After reading, write a short plan (in your own words) of which existing seams you will extend and which new ones you will create. Then build.
+
+## Non-negotiable architecture rules
+
+1. **Every external dependency goes behind a client interface with a Mock and an Http implementation**, selected by `VITE_USE_BACKEND`, exactly like the existing `RegistriesClient` pattern. New seams to create:
+   - `AuthClient` — login(username, password), logout(), me(). Mock accepts any credentials, returns a fake user + workspace.
+   - `WorkflowsClient` — list() returns workflow definitions: `{ name, title, description, steps: [{name, title, gateway?: boolean}], input_descriptor }`.
+   - `RunsClient` — trigger(workflowName, input), get(runId), list(filter), approve(runId), cancel(runId), subscribe(runId, onEvent) for live updates (mock: timer-driven; http later: SSE/polling — hide the mechanism behind subscribe).
+   - `ArtifactsClient` — list(workspace, filter), get(id), publish(id) (returns a fake merge-request URL).
+   - `AppsClient` (or extend existing codegen client) — codegen/planner/log-analyzer invocations, each returning a job/run id rather than a synchronous result.
+2. **No hardcoded catalogs anywhere.** Workflow names, step names, input fields, LLM names, artifact types, status enums used for display — all must come from clients/registries at runtime. The only compile-time enums allowed are the contract types below. If you find yourself typing a workflow name inside a component, stop and move it into mock data.
+3. **Contracts live in one place**: create `frontend/src/lib/contracts/` with the shared types (`RunStatus`, `Run`, `RunEvent`, `WorkflowDef`, `Artifact`, `User`, `Workspace`). These mirror the future backend `src/contracts/`. Status enum: `queued | running | awaiting_approval | completed | failed | cancelled`.
+4. **Mock behavior must be dynamic, not static.** This is the most important rule. `MockRunsClient` must actually simulate a run: on trigger, create a run in `queued`, advance it step by step on timers (2–5s per step), emit `RunEvent`s through `subscribe`, pause at gateway steps with `awaiting_approval` until `approve()` is called, then continue. Include one workflow whose mock run fails at a middle step so the failure UI is real. Runs persist in memory (module-level store) so navigating away and back shows correct state.
+5. **Auth is a UI seam, not security.** Unauthenticated users see the login page; on mock login, store the session in memory/sessionStorage and show the shell. Route guard around the app shell. Keep it swappable for a cookie-session HttpAuthClient later.
+6. **Keep the existing config module and codegen module working.** Extend, don't rewrite. All existing tests must stay green.
+
+## Information architecture
+
+Collapsible sidebar (icon-only when collapsed, remember state) with three labeled sections and a user chip pinned to the bottom:
+
+- **Apps**: Dashboard, Codegen, Test planner, Log analyzer
+- **Automation**: Pipelines, Runs
+- **System**: Configuration (existing slide-over or its own route — your call, justify it)
+
+Routes: `/login`, `/` (dashboard), `/codegen`, `/planner`, `/analyzer`, `/pipelines`, `/pipelines/:name` (input form), `/runs`, `/runs/:id`, plus existing config surfaces.
+
+## Screens
+
+**Login** — centered card on the dot-grid canvas: product mark, username, password, sign in. Error state for empty fields. No SSO buttons yet, but leave visual room.
+
+**Dashboard** — extend the existing registry-driven stats with: recent runs (last 5, live status chips), draft artifacts count, "runs awaiting your approval" list (clicking goes to the run). All from clients, nothing static.
+
+**Codegen** — keep the existing structured step editor, and add an input-mode switcher with three tabs: `Structured steps` (existing), `Jira ticket` (ticket ID input + a mock fetch that populates a read-only preview of pulled steps), `Free text` (name + textarea). Generate now triggers a job via the client and shows progress states (queued → running → result), not a synchronous spinner. Result panel: code with syntax highlighting, copy button, "Save as draft artifact" action.
+
+**Test planner** — input: free-text scenario or Jira epic ID. Output: an editable plan — a list of planned tests (name, steps, preconditions, tags) rendered as editable cards. Actions: save plan as draft artifact, "Send to codegen" (navigates to codegen with the plan pre-loaded — design the handoff through a typed contract, not route state hacks).
+
+**Log analyzer** — placeholder with real shape: paste logs or pick an execution artifact, "Analyze" triggers a mock job, result shows a findings list (severity chip, message, suspected cause) and a summary. Mock returns plausible boardfarm-flavored findings.
+
+**Pipelines** — card grid from `WorkflowsClient.list()`. Each card: title, description, step names as a mini horizontal trail, "Run" button. Clicking Run opens the input form rendered from the workflow's `input_descriptor` using the EXISTING field-descriptor/FieldRenderer machinery — do not build a second form engine. Include a "Pause after step" multi-select populated from the workflow's own step names. Submitting triggers the run and navigates to the run detail.
+
+**Run detail (`/runs/:id`) — the signature screen.** Two-column layout: left, the vertical run rail — one node per step, states: done (green check), running (blue pulsing dot), awaiting approval (amber dot with soft halo), failed (red), pending (hollow). Under each step: a one-line summary and duration from its RunEvents. Right: the active step's detail — artifact preview cards (code with mono font, plan tables), and when status is `awaiting_approval`, the approval bar: "Approve and continue" (accent button) and "Request changes". Live-updates via `subscribe`. Failed runs show the error event prominently with the step that failed.
+
+**Runs list** — table: run id (mono), workflow, status chip, triggered by, started, duration. Filter chips by status. Row click → detail. Live status updates for non-terminal runs.
+
+Seed mock data generously: 3 workflows (e.g. `triage-and-regenerate` with two approval gates, `plan-generate-publish` with one, `analyze-only` with none), ~10 historical runs across all statuses, ~8 draft artifacts.
+
+## Design system
+
+Identity: **instrument panel** — the product lives in the world of testbeds, RF instruments, and CI, so the UI should feel like precision test equipment: dark, hairline-bordered, monospace-forward for data, zero decorative gradients or shadows. Implement all colors as CSS variables (single source in one CSS file / Tailwind theme extension) so a light theme can be added later without touching components. Dark is the default and only theme for now.
+
+Tokens:
+
+```
+--bg-canvas:   #0E1116;   /* page; overlay a dot grid: radial-gradient(#1B222B 1px, transparent 1px), 24px 24px */
+--bg-sidebar:  #12161D;
+--bg-surface:  #151A21;   /* cards, panels */
+--bg-raised:   #1B222B;   /* inputs, code blocks use #0E1116 inset */
+--border:      #232B36;   /* 1px everywhere; #2A323D for emphasis */
+--text-hi:     #E7ECF2;
+--text-mid:    #9AA6B4;
+--text-low:    #5A6472;
+--accent:      #818CF8;   /* interactive: primary buttons, links, active nav, focus rings */
+--accent-ink:  #0E1116;   /* text on accent */
+--status-pass:    #34D399;
+--status-fail:    #F87171;
+--status-running: #60A5FA;
+--status-wait:    #FBBF24;  /* awaiting approval */
+--status-idle:    #3A4450;  /* pending/hollow */
+```
+
+Rules:
+- Semantic colors are reserved: green/red/blue/amber may ONLY mean pass/fail/running/awaiting. The accent (indigo) carries all interactive meaning and never indicates status.
+- Typography: Inter (or system-ui fallback) for UI chrome; JetBrains Mono for run ids, test names, step names, code, file chips. The mono usage is a core part of the identity — data is mono, chrome is sans. Sizes: 13px base UI, 12px mono data, 11px section labels (letter-spacing 0.06em), sentence case everywhere, no title case, no all-caps except nothing.
+- Borders over shadows: 1px `--border` on every surface; no box-shadows except focus rings and the amber halo on the awaiting-approval dot (`box-shadow: 0 0 0 4px rgba(251,191,36,.15)`).
+- Radii: 7–8px controls, 10px cards, 999px status chips.
+- Motion: minimal and purposeful — pulsing dot on the running step (opacity keyframes, ~1.6s), 150ms ease transitions on hover/nav, sidebar collapse 200ms. Respect `prefers-reduced-motion`. Nothing else animates.
+- Status chips: filled amber chip with dark amber text for awaiting approval; tinted (10–15% bg) chips with the status color for others.
+- Copy: verb-first buttons ("Approve and continue", "Run pipeline", "Save draft"), errors say what happened and what to do, empty states invite action ("No runs yet — trigger a pipeline to see it here"). No exclamation marks, no "successfully".
+
+## Quality bar / definition of done
+
+- `npm run typecheck` — zero errors. No `any`, no `@ts-ignore`.
+- All 51 existing tests pass; add Vitest coverage for: each new mock client (especially MockRunsClient's step progression and approval pause — use fake timers), the contracts, and the run-rail state derivation.
+- Every new client has both Mock and Http implementations; Http ones may hit the paths in BACKEND_API_CONTRACT.md style (`/api/auth/login`, `/api/workflows`, `/api/runs`, `/api/artifacts`) and can be untested stubs, but must compile and share the interface.
+- Update `frontend/docs/BACKEND_API_CONTRACT.md` with every new endpoint the Http clients expect — this document is a deliverable, not an afterthought.
+- No new heavy dependencies without justification; prefer what's already installed. A syntax highlighter and an icon set (lucide-react or tabler) are acceptable additions.
+- Works at 1280px and degrades sanely to ~1024px; sidebar collapses.
+
+## Out of scope
+
+No real backend calls, no websockets implementation (mock the subscribe seam), no light theme (but token-ready), no visual DAG editor of any kind — pipelines are cards and forms, runs are rails. Do not modify anything under the repository's Python `src/`, `api/`, or `configs/`.

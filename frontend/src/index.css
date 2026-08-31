@@ -1,0 +1,194 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/*
+ * Design tokens — "instrument panel" identity: dark, hairline-bordered,
+ * monospace-forward for data. Single dark theme for now; every color routes
+ * through a CSS variable (RGB triplets so Tailwind opacity modifiers keep
+ * working via rgb(var(--x) / <alpha-value>)), so a light theme later is a new
+ * :root block, not a component change.
+ *
+ * Semantic rule: green/red/blue/amber mean pass/fail/running/awaiting ONLY.
+ * Indigo (--accent) carries all interactive meaning and never indicates status.
+ */
+@layer base {
+  :root {
+    color-scheme: dark;
+
+    /* surfaces — cooled slightly toward blue for the instrument-panel look */
+    --canvas: 13 16 23; /* #0D1017 page background (dot grid overlaid) */
+    --sidebar: 16 20 28; /* #10141C */
+    --surface: 20 25 34; /* #141922 cards, panels */
+    --surface-raised: 26 33 44; /* #1A212C inputs */
+    --surface-inset: 11 14 20; /* #0B0E14 code blocks */
+
+    /* hairlines */
+    --border: 33 41 54; /* #212936 */
+    --border-strong: 43 53 67; /* #2B3543 */
+
+    /* text */
+    --foreground: 232 237 243; /* #E8EDF3 text-hi */
+    --muted: 150 162 178; /* #96A2B2 text-mid */
+    --faint: 88 99 116; /* #586374 text-low */
+
+    /* interactive: indigo accent + cyan highlight (the "blue tint") */
+    --accent: 110 123 255; /* #6E7BFF indigo — interactive only */
+    --accent-fg: 12 15 21; /* ink on accent */
+    --highlight: 34 211 238; /* #22D3EE cyan — brand/secondary emphasis */
+    --highlight-fg: 12 15 21; /* ink on highlight */
+
+    /* status (reserved semantics) */
+    --ok: 52 211 153; /* #34D399 pass */
+    --danger: 248 113 113; /* #F87171 fail */
+    --running: 96 165 250; /* #60A5FA running */
+    --warning: 251 191 36; /* #FBBF24 awaiting approval */
+    --idle: 58 68 80; /* #3A4450 pending/hollow */
+  }
+
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+
+  body {
+    @apply bg-canvas text-foreground antialiased;
+    margin: 0;
+    font-size: 13px;
+    font-family:
+      Inter,
+      ui-sans-serif,
+      system-ui,
+      -apple-system,
+      "Segoe UI",
+      Roboto,
+      sans-serif;
+  }
+
+  /* Icons default to 14px so an unsized SVG never expands; h-/w- utilities override. */
+  svg {
+    width: 14px;
+    height: 14px;
+    flex: none;
+  }
+}
+
+@layer utilities {
+  /* The dot-grid canvas texture (page + login backgrounds). */
+  .bg-dotgrid {
+    background-image: radial-gradient(rgb(var(--surface-raised)) 1px, transparent 1px);
+    background-size: 24px 24px;
+  }
+
+  /* Brand wordmark: indigo→cyan gradient text. */
+  .text-brand {
+    background-image: linear-gradient(
+      100deg,
+      rgb(var(--accent)) 0%,
+      rgb(var(--highlight)) 100%
+    );
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+
+  /* Indigo→cyan gradient fill (brand mark, primary emphasis). */
+  .bg-brand-gradient {
+    background-image: linear-gradient(
+      120deg,
+      rgb(var(--accent)) 0%,
+      rgb(var(--highlight)) 100%
+    );
+  }
+
+  /* Soft interactive halo for primary surfaces on hover/active. */
+  .glow-accent {
+    box-shadow:
+      0 0 0 1px rgb(var(--accent) / 0.35),
+      0 10px 34px -14px rgb(var(--accent) / 0.55);
+  }
+
+  /* Ambient top glow used behind hero/nav regions. */
+  .glow-ambient {
+    background:
+      radial-gradient(60% 120% at 15% -10%, rgb(var(--accent) / 0.12), transparent 60%),
+      radial-gradient(50% 120% at 100% -20%, rgb(var(--highlight) / 0.08), transparent 55%);
+  }
+
+  /* Soft halo on the awaiting-approval dot — the one sanctioned shadow. */
+  .halo-wait {
+    box-shadow: 0 0 0 4px rgb(var(--warning) / 0.15);
+  }
+
+  /* Pulsing dot for the running step. */
+  .animate-pulse-dot {
+    animation: pulse-dot 1.6s ease-in-out infinite;
+  }
+
+  @keyframes pulse-dot {
+    0%,
+    100% {
+      opacity: 1;
+    }
+    50% {
+      opacity: 0.35;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .animate-pulse-dot {
+      animation: none;
+    }
+    * {
+      transition-duration: 0.01ms !important;
+    }
+    *,
+    *::before,
+    *::after {
+      animation: none !important;
+      transition: none !important;
+    }
+  }
+
+  /* Slide-over (Radix Dialog) enter/leave. Radix keeps the node mounted until the
+     animation ends, so exits actually play. Same easing everywhere. */
+  .so-veil[data-state="open"] {
+    animation: so-veil-in 0.2s ease;
+  }
+  .so-veil[data-state="closed"] {
+    animation: so-veil-out 0.2s ease;
+  }
+  .so-panel[data-state="open"] {
+    animation: so-panel-in 0.24s cubic-bezier(0.2, 0.7, 0.3, 1);
+  }
+  .so-panel[data-state="closed"] {
+    animation: so-panel-out 0.24s cubic-bezier(0.2, 0.7, 0.3, 1);
+  }
+
+  @keyframes so-veil-in {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+  @keyframes so-veil-out {
+    from { opacity: 1; }
+    to { opacity: 0; }
+  }
+  @keyframes so-panel-in {
+    from { transform: translateX(100%); }
+    to { transform: translateX(0); }
+  }
+  @keyframes so-panel-out {
+    from { transform: translateX(0); }
+    to { transform: translateX(100%); }
+  }
+
+  /* Selection tray: always mounted, slides up when .is-up is present. */
+  .tray-dock {
+    transform: translateY(110%);
+    transition: transform 0.22s cubic-bezier(0.2, 0.7, 0.3, 1);
+  }
+  .tray-dock.is-up {
+    transform: translateY(0);
+  }
+}

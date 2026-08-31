@@ -1,0 +1,159 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "ABC",
+  "description": "Demo RDKB cable modem — copy and customize for your device model",
+
+  "type": "object",
+  "required": ["environment_def"],
+  "properties": {
+    "environment_def": {
+      "type": "object",
+      "required": ["board"],
+      "properties": {
+        "board": {
+          "type": "object",
+          "required": ["model", "eRouter_Provisioning_mode"],
+          "properties": {
+            "model": {
+              "const": "DEMO_X1",
+              "description": "Device model identifier"
+            },
+            "eRouter_Provisioning_mode": {
+              "type": "string",
+              "enum": ["dual", "ipv4", "ipv6", "disabled"],
+              "description": "Router provisioning mode"
+            },
+            "SKU": {
+              "type": "string",
+              "enum": ["abc", "efg"],
+              "description": "Country/operator variant"
+            },
+            "country": {
+              "type": "string",
+              "description": "Country code"
+            },
+            "boot_file": {
+              "type": "string",
+              "description": "DOCSIS CM boot configuration file"
+            },
+            "software": {
+              "type": "object",
+              "properties": {
+                "image_uri": {
+                  "type": "string",
+                  "description": "Path to firmware image"
+                },
+                "flash_strategy": {
+                  "type": "string",
+                  "enum": ["all", "arm", "atom", "meta_build"],
+                  "default": "all"
+                },
+                "factory_reset": {
+                  "type": "boolean",
+                  "default": true
+                }
+              }
+            },
+            "emta": {
+              "type": "object",
+              "properties": {
+                "boot_file_mta": {
+                  "type": "string",
+                  "description": "eMTA boot configuration"
+                }
+              }
+            },
+            "lan_clients": {
+              "type": "array",
+              "maxItems": 4,
+              "items": {"type": "object"},
+              "description": "LAN/Ethernet clients"
+            },
+            "wifi_clients": {
+              "type": "array",
+              "maxItems": 3,
+              "items": {
+                "type": "object",
+                "properties": {
+                  "band": {
+                    "type": "string",
+                    "enum": ["2.4", "5"]
+                  },
+                  "network": {
+                    "type": "string",
+                    "enum": ["private", "guest"]
+                  },
+                  "protocol": {
+                    "type": "string",
+                    "enum": ["802.11n", "802.11ac", "802.11ax"],
+                    "default": "802.11ac"
+                  },
+                  "authentication": {
+                    "type": "string",
+                    "enum": ["Disabled", "WPA-PSK", "WPA2-PSK"],
+                    "default": "WPA-PSK"
+                  }
+                }
+              },
+              "description": "WiFi clients"
+            },
+            "install_applications": {
+              "type": "array",
+              "items": {"type": "string"},
+              "description": "URLs of apps to install on device"
+            },
+            "GUI_Language": {
+              "type": "string",
+              "enum": ["en", "nl", "de", "fr"],
+              "default": "en"
+            }
+          }
+        },
+        "tr-069": {
+          "type": "object",
+          "description": "TR-069 ACS auto-configuration server",
+          "properties": {
+            "provisioning": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "SPV": {
+                    "type": "array",
+                    "items": {"type": "object"}
+                  }
+                }
+              }
+            }
+          }
+        },
+        "voice": {
+          "type": "object",
+          "description": "SIP/VoIP telephony with softphones",
+          "default": {
+            "EXT_VOIP": [
+              {"profile": "pjsip", "type": "debian"},
+              {"profile": "pjsip", "type": "debian"}
+            ]
+          },
+          "properties": {
+            "EXT_VOIP": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "profile": {"type": "string", "default": "pjsip"},
+                  "type": {"type": "string", "default": "debian"}
+                }
+              }
+            }
+          }
+        },
+        "provisioner": {
+          "type": "object",
+          "description": "DHCP provisioner for device provisioning"
+        }
+      }
+    }
+  }
+}

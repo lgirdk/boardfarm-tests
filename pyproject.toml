@@ -1,68 +1,207 @@
-[tool.commitizen]
-    name = "cz_conventional_commits"
-    style = [
-        ["qmark", "fg:#ff9d00 bold"],
-        ["question", "bold"],
-        ["answer", "fg:#ff9d00 bold"],
-        ["pointer", "fg:#ff9d00 bold"],
-        ["highlighted", "fg:#ff9d00 bold"],
-        ["selected", "fg:#cc5454"],
-        ["separator", "fg:#cc5454"],
-        ["instruction", ""],
-        ["text", ""],
-        ["disabled", "fg:#858585 italic"],
-    ]
-    tag_format = "$version"
-    version = "0.0.1a1"
-    version_files = [
-        "pyproject.toml:version",
-    ]
+[project]
+name = "test-automation-engine"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.14"
+dependencies = [
+    "anthropic>=0.102.0",
+    "faiss-cpu>=1.13.2",
+    "fastapi>=0.136.3",
+    "gunicorn>=26.0.0",
+    "httpx>=0.28.1",
+    "jsonschema>=4.26.0",
+    "nltk>=3.9.4",
+    "openai>=2.36.0",
+    "pydantic>=2.13.3",
+    "python-dotenv>=1.2.2",
+    "rank-bm25>=0.2.2",
+    "requests>=2.33.1",
+    "rich>=15.0.0",
+    "sentence-transformers>=5.4.1",
+    "tomlkit>=0.15.0",
+    "transformers>=5.7.0",
+    "uvicorn>=0.49.0",
+]
 
-[tool.mypy]
-    disallow_untyped_defs  = true
-    ignore_missing_imports = true
-    no_strict_optional     = true
-    pretty                 = true
-    show_error_codes       = true
-    warn_redundant_casts   = true
-    warn_unreachable       = true
-    warn_unused_ignores    = true
+[dependency-groups]
+dev = [
+    "mypy>=2.1.0",
+    "pytest>=9.1.1",
+    "ruff>=0.15.20",
+    "tiktoken>=0.13.0",
+]
 
 [tool.ruff]
-    lint.select = [ "ALL" ]
-    lint.ignore = [
-        "ANN101",  # missing-type-self (flake8-annotations)
-        "ANN102",  # missing-type-cls (flake8-annotations)
-        "D211",    # one-blank-line-before-class (pydocstyle)
-        "D213",    # multi-line-summary-second-line (pydocstyle)
-        "COM812",  # trailing-comma-missing (flake8-commas)
-        "S101",    # use of assert (flake8-bandit)
-        "N999",    # invalid-module-name (pep8-naming)
-        "N802",    # invalid-function-name (pep8-naming)
-    ]
-    lint.extend-ignore = ["ISC001"]
-    line-length = 88
 
-    extend-exclude = ["venv3", ".venv3", ".ruff_cache"]
-    lint.fixable = ["ALL"]
-    lint.unfixable = ["F401"]
-    # Assume Python 3.11.
-    target-version = "py312"
-    # Only ignore variables named "_".
-    lint.dummy-variable-rgx = "^_$"
+# Exclude a variety of commonly ignored directories.
+exclude = [
+  ".bzr",
+  ".direnv",
+  ".eggs",
+  ".git",
+  ".git-rewrite",
+  ".hg",
+  ".mypy_cache",
+  ".nox",
+  ".pants.d",
+  ".pytype",
+  ".ruff_cache",
+  ".svn",
+  ".tox",
+  ".venv",
+  "__pypackages__",
+  "_build",
+  "buck-out",
+  "build",
+  "dist",
+  "node_modules",
+  "venv",
+  "parsetab.py",
+  "prompt",
+  "prompts",
+  "*.py.bak",
+  ".stubs"
+]
 
-    [tool.ruff.lint.mccabe]
-    # Unlike Flake8, default to a complexity level of 10.
-    max-complexity = 12
+line-length = 88
 
-    [tool.ruff.format]
-    # Enable reformatting of code snippets in docstrings.
-    docstring-code-format = true
+target-version = "py313"
+
+[tool.ruff.format]
+# Enable ruff formatting (equivalent to Black)
+quote-style = "double"
+indent-style = "space"
+line-ending = "auto"
+skip-magic-trailing-comma = false
+docstring-code-format = true
+docstring-code-line-length = 60
 
 
-    [tool.ruff.lint.pylint]
-    max-args = 10
-    max-statements = 75
+[tool.ruff.lint]
+ignore = [
+  "ANN204", # annotation of __init__()
+  "ANN",    # TODO need to remove once in place
+  "D203",   # 1 blank line required before class docstring
+  "D213",   # Multi-line docstring summary should start at the second line
+  "FBT",    # boolean trap, no clear solution
+  "SIM114", # simplify if-elif by AND/OR combinations
+  "SIM108",
+  "TD",     # would conflict with TODO highlighter
+  "FIX002", # we need to keep TODOs in the code
+  "E501",   # line too long (handled by formatter)
+  "COM812", # conflicts with formatter
+  "ISC001", # conflicts with formatter
+  "ERA001", # commented-out code - manual review needed
+  "RET505",  # unnecessary else after return (sometimes clearer)
+  "RET504",
+  "S101",
+  "S501",
+  "RUF022",
+]
+select = [
+  "E",   # pycodestyle errors
+  "F",   # Pyflakes
+  "I",   # isort
+#   "D",   # pydocstyle
+  "B",   # flake8-bugbear
+  "T",   # flake8-type-checking
+  "UP",  # pyupgrade
+  "C4",  # flake8-comprehensions
+  "RET", # flake8-return
+  "SIM", # flake8-simplify
+  # "PTH", # pathlib over os.path
+#   "PL",  # pylint
+  "RUF", # Ruff-specific rules
+  "S",   # bandit (security)
+]
+# Rule explanations:
+# E    - pycodestyle errors (PEP8 style)
+# F    - Pyflakes (syntax and undefined names)
+# I    - isort (import sorting)
+# D    - pydocstyle (docstring conventions)
+# B    - flake8-bugbear (likely bugs and code smells)
+# T    - flake8-type-checking (typing improvements)
+# UP   - pyupgrade (modernize syntax)
+# C4   - flake8-comprehensions (list/dict comprehensions)
+# RET  - flake8-return (return statement improvements)
+# SIM  - flake8-simplify (code simplification)
+# PTH  - flake8-use-pathlib (pathlib over os.path)
+# ERA  - eradicate (remove commented-out code)
+# PL   - pylint (comprehensive static analysis)
+# RUF  - Ruff-specific rules
 
-    [tool.ruff.lint.flake8-pytest-style]
-    fixture-parentheses = true
+# Allow autofix for most rules (when `--fix`) is provided
+fixable = [
+  "I",       # import sorting
+  "UP",      # syntax modernization
+  "C4",      # comprehensions
+  "SIM",     # simplification
+  "W",       # whitespace
+  "RUF100",  # dead noqa comments
+  "RUF023",
+]
+
+unfixable = [
+  "F401",    # unused imports - manual review needed
+  "PLC0414", # import alias same as name - might be intentional
+  "B",       # Bugbear fixes can change behavior — review manually.
+  "S",       # Security fixes need human judgment, not auto-patching.
+  "RET",     # Return-statement refactors can change readability — your call.
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["S101", "S106", "S105", "RUF059", "E742"]
+"tests/conftest.py" = ["F401"]  # re-exported fixtures
+
+[tool.ruff.lint.flake8-bugbear]
+extend-immutable-calls = [
+    "fastapi.Depends",
+    "fastapi.Query",
+    "fastapi.Path",
+    "fastapi.Body",
+    "fastapi.Header",
+    "fastapi.Cookie",
+    "fastapi.File",
+    "fastapi.Form",
+    "fastapi.Security",
+]
+
+[tool.mypy]
+python_version = "3.14"           # actual python version
+mypy_path = "src"
+cache_dir = ".mypy_cache"
+
+# Strictness — start permissive, tighten later
+disallow_untyped_defs = false     # flip to true once most functions are annotated
+disallow_incomplete_defs = true   # if you annotate partially, finish it
+disallow_untyped_decorators = false
+disallow_any_generics = false
+
+# Import handling
+ignore_missing_imports = true     # third-party libs without stubs won't flood errors
+follow_imports = "silent"
+
+# None-safety
+strict_optional = true
+
+# Warnings 
+warn_redundant_casts = true
+warn_unused_configs = true
+warn_unused_ignores = true
+warn_unreachable = true
+warn_return_any = true
+
+# Error reporting
+show_error_codes = true
+show_column_numbers = true
+pretty = true
+color_output = true
+
+[[tool.mypy.overrides]]
+module = [
+    "src.*",
+]
+disallow_untyped_defs = true
+disallow_untyped_decorators = true
+follow_imports = "normal"
