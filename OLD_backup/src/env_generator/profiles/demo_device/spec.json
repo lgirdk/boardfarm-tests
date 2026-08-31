@@ -1,0 +1,45 @@
+{
+  "model": "DEMO_X1",
+  "description": "Demo RDKB cable modem — copy and customize for your device model",
+
+  "board": {
+    "model": "DEMO_X1",
+    "eRouter_Provisioning_mode": ["dual", "ipv4", "ipv6", "disabled"],
+    "SKU": null,
+    "country": null,
+    "boot_file": null,
+    "software": {
+      "image_uri": null,
+      "flash_strategy": ["all", "arm", "atom", "meta_build"],
+      "factory_reset": true
+    },
+    "emta": {
+      "boot_file_mta": null
+    },
+    "lan_clients": [{},{},{},{}],
+    "wifi_clients": [{
+      "bands": ["2.4", "5"],
+      "networks": ["private", "guest"],
+      "protocols": ["802.11n", "802.11ac", "802.11ax"],
+      "auth": ["Disabled", "WPA-PSK", "WPA2-PSK"]
+    }],
+    "install_applications": null,
+    "GUI_Language": ["en", "nl", "de", "fr"]
+  },
+
+  "features": {
+    "tr-069": {
+      "provisioning": [
+        {"SPV": [null]}
+      ],
+      "packet_analysis": false
+    },
+    "voice": {
+      "EXT_VOIP": [
+        {"profile": "pjsip", "type": "debian"},
+        {"profile": "pjsip", "type": "debian"}
+      ]
+    },
+    "provisioner": {}
+  }
+}

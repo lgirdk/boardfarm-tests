@@ -1,0 +1,561 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/*
+ * Boardfarm design tokens. Three themes:
+ *   :root              = Classic dark (indigo/violet on deep black)
+ *   [data-theme="blueprint"]  = Light — cool blue-grey, drafting blue accent
+ *   [data-theme="evergreen"]  = Light — soft mint, deep forest accent
+ *
+ * Colors via CSS variables (RGB triplets for Tailwind opacity modifiers).
+ * Semantic rule: green/red/blue/amber = pass/fail/running/awaiting ONLY.
+ * Accent = interactive only. Area colors = tiles, chips, row tags only.
+ */
+@layer base {
+  /* ═══════════════════════════════════════════════════════════════════
+   * CLASSIC DARK — indigo/violet on deep black. The original boardfarm.
+   * ═══════════════════════════════════════════════════════════════════ */
+  :root {
+    color-scheme: dark;
+
+    /* surfaces */
+    --bg: 8 10 15;
+    --bg2: 12 15 22;
+    --canvas: 8 10 15;
+    --sidebar: 16 20 28;
+    --surface: 18 22 31;
+    --surface-raised: 24 29 40;
+    --surface-inset: 9 11 17;
+    --surface-3: 31 37 49;
+
+    /* hairlines */
+    --border: 34 42 55;
+    --border-strong: 46 55 69;
+
+    /* text */
+    --foreground: 237 241 247;
+    --muted: 148 160 176;
+    --faint: 90 100 114;
+
+    /* interactive */
+    --accent: 124 140 255;
+    --accent-fg: 8 10 15;
+    --accent2: 167 139 250;
+    --highlight: 34 211 238;
+    --highlight-fg: 8 10 15;
+
+    /* status */
+    --ok: 61 220 151;
+    --danger: 255 122 122;
+    --running: 90 169 255;
+    --warning: 255 197 90;
+    --idle: 46 56 70;
+
+    /* area identity */
+    --area-docsis: 34 211 238;
+    --area-voice: 167 139 250;
+    --area-wifi: 45 212 191;
+    --area-tr069: 244 114 182;
+    --area-net: 125 211 252;
+    --area-prov: 253 186 116;
+
+    /* glass overlays — white tints on dark bg */
+    --glass: 255 255 255;
+    --glass-card-from: 0.03;
+    --glass-card-inset: rgba(255,255,255,0.045);
+    --glass-card-shadow: 0 10px 28px -18px rgba(0,0,0,0.9);
+    --glass-hover: 0.045;
+    --glass-dock-from: rgba(18,22,31,0.92);
+    --glass-dock-to: rgba(12,15,22,0.55);
+    --glass-veil: rgba(4,6,10,0.66);
+    --glass-footer: rgba(255,255,255,0.016);
+
+    /* button gradient */
+    --btn-from: 139 153 255;
+    --btn-to: 106 121 242;
+    --btn-border: 119 132 248;
+    --btn-shadow: 124 140 255;
+    --btn-ghost-hover: rgba(255,255,255,0.05);
+    --btn-secondary-from: rgba(255,255,255,0.05);
+    --btn-secondary-to: rgba(255,255,255,0.01);
+    --btn-secondary-hover-from: rgba(255,255,255,0.085);
+    --btn-secondary-hover-to: rgba(255,255,255,0.02);
+    --btn-secondary-hover-border: 60 71 86;
+
+    /* console (always dark in all themes) */
+    --console-bg: 9 11 17;
+    --console-fg: 221 227 234;
+    --console-ts: 105 113 124;
+    --console-src: 127 178 232;
+    --console-ok: 91 228 155;
+    --console-warn: 251 191 36;
+    --console-err: 255 138 138;
+
+    /* code blocks — dark theme uses inset surface */
+    --code-bg: 9 11 17;
+    --code-fg: 237 241 247;
+    --code-kw: 124 140 255;
+    --code-str: 61 220 151;
+    --code-num: 255 197 90;
+    --code-cm: 90 100 114;
+    --code-dec: 196 167 247;
+
+    /* focus ring */
+    --focus-ring: rgba(124,140,255,0.22);
+
+    /* ambient glow for body background */
+    --body-glow1: rgba(124,140,255,0.09);
+    --body-glow2: rgba(167,139,250,0.055);
+
+    /* timing */
+    --ease: cubic-bezier(0.22, 0.72, 0.24, 1);
+  }
+
+  /* ═══════════════════════════════════════════════════════════════════
+   * BLUEPRINT — cool blue-grey paper, deep drafting blue accent.
+   * Technical drawing aesthetic. Tight corners, shadows not glows.
+   * ═══════════════════════════════════════════════════════════════════ */
+  [data-theme="blueprint"] {
+    color-scheme: light;
+
+    /* surfaces */
+    --bg: 237 241 245;
+    --bg2: 245 248 250;
+    --canvas: 237 241 245;
+    --sidebar: 237 241 245;
+    --surface: 250 252 253;
+    --surface-raised: 237 241 245;
+    --surface-inset: 243 246 249;     /* light inset for code/textareas */
+    --surface-3: 226 233 239;
+
+    /* hairlines */
+    --border: 213 222 230;
+    --border-strong: 176 190 203;
+
+    /* text — all pass AA on --surface */
+    --foreground: 15 21 26;            /* 17.9:1 */
+    --muted: 65 76 89;                /* 8.5:1 */
+    --faint: 94 105 117;              /* 5.4:1 */
+
+    /* interactive — drafting blue */
+    --accent: 11 74 115;              /* 9.1:1 on card */
+    --accent-fg: 255 255 255;
+    --accent2: 14 116 144;
+    --highlight: 11 74 115;
+    --highlight-fg: 255 255 255;
+
+    /* status — darkened for light bg, all ≥4.7:1 */
+    --ok: 15 95 57;                   /* #0F5F39 7.5:1 */
+    --danger: 163 30 23;              /* #A31E17 7.4:1 */
+    --running: 27 116 184;            /* #1B74B8 4.8:1 */
+    --warning: 122 78 0;              /* #7A4E00 7.0:1 */
+    --idle: 195 205 214;
+
+    /* area identity — darkened for light bg */
+    --area-docsis: 10 100 120;
+    --area-voice: 91 33 182;
+    --area-wifi: 13 97 87;
+    --area-tr069: 150 24 90;
+    --area-net: 27 77 187;
+    --area-prov: 154 74 10;
+
+    /* glass — dark tints on light bg */
+    --glass: 0 0 0;
+    --glass-card-from: 0;
+    --glass-card-inset: none;
+    --glass-card-shadow: 0 1px 2px rgba(18,24,29,0.07), 0 6px 14px -10px rgba(18,24,29,0.18);
+    --glass-hover: 0.04;
+    --glass-dock-from: rgba(237,241,245,0.94);
+    --glass-dock-to: rgba(245,248,250,0.7);
+    --glass-veil: rgba(15,21,26,0.32);
+    --glass-footer: rgba(0,0,0,0.025);
+
+    /* button gradient */
+    --btn-from: 16 100 155;
+    --btn-to: 11 74 115;
+    --btn-border: 14 88 138;
+    --btn-shadow: 11 74 115;
+    --btn-ghost-hover: rgba(0,0,0,0.05);
+    --btn-secondary-from: rgba(0,0,0,0.03);
+    --btn-secondary-to: rgba(0,0,0,0.01);
+    --btn-secondary-hover-from: rgba(0,0,0,0.06);
+    --btn-secondary-hover-to: rgba(0,0,0,0.02);
+    --btn-secondary-hover-border: 165 178 192;
+
+    /* console — always dark */
+    --console-bg: 17 22 27;
+    --console-fg: 221 227 234;
+    --console-ts: 136 146 160;
+    --console-src: 127 196 245;
+    --console-ok: 91 228 155;
+    --console-warn: 251 191 36;
+    --console-err: 255 138 138;
+
+    /* code blocks — light in blueprint */
+    --code-bg: 243 246 249;
+    --code-fg: 26 32 39;
+    --code-kw: 11 74 115;
+    --code-str: 15 95 57;
+    --code-num: 138 75 0;
+    --code-cm: 94 105 117;
+    --code-dec: 107 33 168;
+
+    /* focus ring */
+    --focus-ring: rgba(11,74,115,0.22);
+
+    /* body background — no glow, clean flat gradient */
+    --body-glow1: rgba(11,74,115,0.04);
+    --body-glow2: rgba(14,116,144,0.025);
+  }
+
+  /* ═══════════════════════════════════════════════════════════════════
+   * EVERGREEN — soft mint paper, deep forest green accent.
+   * Calm, natural, "systems healthy." Red failures POP.
+   * ═══════════════════════════════════════════════════════════════════ */
+  [data-theme="evergreen"] {
+    color-scheme: light;
+
+    /* surfaces */
+    --bg: 236 245 237;                /* #ECF5ED soft mint */
+    --bg2: 243 250 244;
+    --canvas: 236 245 237;
+    --sidebar: 236 245 237;
+    --surface: 247 251 247;           /* #F7FBF7 mint-tinted white */
+    --surface-raised: 234 241 235;
+    --surface-inset: 240 246 240;     /* light mint inset for code/textareas */
+    --surface-3: 218 229 220;
+
+    /* hairlines */
+    --border: 205 218 208;
+    --border-strong: 176 194 180;
+
+    /* text */
+    --foreground: 15 21 26;           /* 16.5:1 */
+    --muted: 61 74 68;               /* 8.1:1 */
+    --faint: 94 105 117;              /* 5.0:1 */
+
+    /* interactive — deep forest */
+    --accent: 27 67 50;              /* #1B4332  9.9:1 on bg */
+    --accent-fg: 255 255 255;         /* 11.1:1 on accent */
+    --accent2: 20 83 51;
+    --highlight: 27 67 50;
+    --highlight-fg: 255 255 255;
+
+    /* status — tuned for mint bg */
+    --ok: 10 92 51;                   /* #0A5C33 7.3:1 */
+    --danger: 185 28 28;              /* #B91C1C 5.8:1 */
+    --running: 21 88 168;             /* #1558A8 6.3:1 */
+    --warning: 122 68 0;              /* #7A4400 7.1:1 */
+    --idle: 195 205 198;
+
+    /* area identity */
+    --area-docsis: 10 100 120;
+    --area-voice: 91 33 182;
+    --area-wifi: 13 97 87;
+    --area-tr069: 150 24 90;
+    --area-net: 27 77 187;
+    --area-prov: 154 74 10;
+
+    /* glass — dark tints on light bg */
+    --glass: 0 0 0;
+    --glass-card-from: 0;
+    --glass-card-inset: none;
+    --glass-card-shadow: 0 1px 2px rgba(15,26,18,0.06), 0 6px 14px -10px rgba(15,26,18,0.16);
+    --glass-hover: 0.04;
+    --glass-dock-from: rgba(236,245,237,0.94);
+    --glass-dock-to: rgba(243,250,244,0.7);
+    --glass-veil: rgba(15,21,18,0.28);
+    --glass-footer: rgba(0,0,0,0.025);
+
+    /* button gradient */
+    --btn-from: 35 85 60;
+    --btn-to: 27 67 50;
+    --btn-border: 30 76 55;
+    --btn-shadow: 27 67 50;
+    --btn-ghost-hover: rgba(0,0,0,0.05);
+    --btn-secondary-from: rgba(0,0,0,0.03);
+    --btn-secondary-to: rgba(0,0,0,0.01);
+    --btn-secondary-hover-from: rgba(0,0,0,0.06);
+    --btn-secondary-hover-to: rgba(0,0,0,0.02);
+    --btn-secondary-hover-border: 158 178 163;
+
+    /* console — always dark */
+    --console-bg: 17 22 27;
+    --console-fg: 221 227 234;
+    --console-ts: 136 146 160;
+    --console-src: 127 196 245;
+    --console-ok: 91 228 155;
+    --console-warn: 251 191 36;
+    --console-err: 255 138 138;
+
+    /* code blocks — light mint tinted */
+    --code-bg: 240 246 240;
+    --code-fg: 26 32 30;
+    --code-kw: 27 67 50;
+    --code-str: 10 92 51;
+    --code-num: 139 69 19;
+    --code-cm: 94 105 117;
+    --code-dec: 107 33 168;
+
+    /* focus ring */
+    --focus-ring: rgba(27,67,50,0.22);
+
+    /* body background */
+    --body-glow1: rgba(27,67,50,0.035);
+    --body-glow2: rgba(21,88,168,0.025);
+  }
+
+  html,
+  body,
+  #root {
+    height: 100%;
+    overflow: hidden;
+  }
+
+  body {
+    margin: 0;
+    font-size: 13.5px;
+    line-height: 1.55;
+    font-family:
+      Inter,
+      ui-sans-serif,
+      system-ui,
+      -apple-system,
+      "Segoe UI",
+      Roboto,
+      sans-serif;
+    color: rgb(var(--foreground));
+    background: rgb(var(--bg));
+    background-image:
+      radial-gradient(1400px 700px at 15% -15%, var(--body-glow1), transparent 62%),
+      radial-gradient(1000px 560px at 95% 5%, var(--body-glow2), transparent 58%),
+      linear-gradient(180deg, rgb(var(--bg2)), rgb(var(--bg)) 45%);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* Scrollbar */
+  ::-webkit-scrollbar { width: 10px; height: 10px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb {
+    background: rgb(var(--border-strong));
+    border-radius: 8px;
+    border: 3px solid transparent;
+    background-clip: content-box;
+  }
+
+  /* Icons default to 16px */
+  svg {
+    width: 16px;
+    height: 16px;
+    flex: none;
+  }
+
+  /* Headings: Space Grotesk */
+  h1, h2, h3, .disp {
+    font-family: "Space Grotesk", Inter, system-ui, sans-serif;
+    letter-spacing: -0.024em;
+  }
+
+  /* Placeholder text — always uses --faint, never lighter */
+  ::placeholder {
+    color: rgb(var(--faint));
+    opacity: 1;
+  }
+}
+
+@layer utilities {
+  /* ===== Background textures ===== */
+  .bg-dotgrid {
+    background-image: radial-gradient(rgb(var(--surface-raised)) 1px, transparent 1px);
+    background-size: 24px 24px;
+  }
+
+  /* ===== Brand ===== */
+  .text-brand {
+    background-image: linear-gradient(100deg, rgb(var(--accent)) 0%, rgb(var(--highlight)) 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+  .bg-brand-gradient {
+    background-image: linear-gradient(120deg, rgb(var(--accent)) 0%, rgb(var(--highlight)) 100%);
+  }
+
+  /* ===== Glows (dark themes) / Shadows (light themes) ===== */
+  .glow-accent {
+    box-shadow:
+      0 0 0 1px rgb(var(--accent) / 0.35),
+      0 10px 34px -14px rgb(var(--accent) / 0.55);
+  }
+  .glow-ambient {
+    background:
+      radial-gradient(60% 120% at 15% -10%, rgb(var(--accent) / 0.12), transparent 60%),
+      radial-gradient(50% 120% at 100% -20%, rgb(var(--highlight) / 0.08), transparent 55%);
+  }
+  .halo-wait {
+    box-shadow: 0 0 0 4px rgb(var(--warning) / 0.15);
+  }
+
+  /* ===== V3 card — adapts via glass tokens ===== */
+  .v3-card {
+    background:
+      linear-gradient(180deg, rgb(var(--glass) / var(--glass-card-from)), transparent 44%),
+      rgb(var(--surface));
+    border: 1px solid rgb(var(--border));
+    border-radius: 16px;
+    box-shadow:
+      var(--glass-card-inset, inset 0 1px 0 rgba(255,255,255,0.045)),
+      var(--glass-card-shadow);
+  }
+
+  /* ===== Console — always dark ===== */
+  .console-panel {
+    background: rgb(var(--console-bg));
+    color: rgb(var(--console-fg));
+    border-color: rgb(var(--console-bg));
+  }
+  .console-ts { color: rgb(var(--console-ts)); }
+  .console-src { color: rgb(var(--console-src)); font-weight: 600; }
+  .console-ok { color: rgb(var(--console-ok)); }
+  .console-warn { color: rgb(var(--console-warn)); }
+  .console-err { color: rgb(var(--console-err)); }
+
+  /* ===== Code blocks — themed per scheme ===== */
+  .code-block {
+    background: rgb(var(--code-bg));
+    color: rgb(var(--code-fg));
+    border: 1px solid rgb(var(--border));
+  }
+  .code-kw { color: rgb(var(--code-kw)); }
+  .code-str { color: rgb(var(--code-str)); }
+  .code-num { color: rgb(var(--code-num)); }
+  .code-cm { color: rgb(var(--code-cm)); font-style: italic; }
+  .code-dec { color: rgb(var(--code-dec)); }
+
+  /* ===== Primary button — theme-aware gradient ===== */
+  .btn-primary {
+    background: linear-gradient(180deg, rgb(var(--btn-from)), rgb(var(--btn-to)));
+    border: 1px solid rgb(var(--btn-border));
+    color: rgb(var(--accent-fg));
+    font-weight: 600;
+    box-shadow: 0 6px 18px -6px rgb(var(--btn-shadow) / 0.5),
+                inset 0 1px 0 rgba(255,255,255,0.25);
+  }
+  .btn-secondary {
+    background: linear-gradient(180deg, var(--btn-secondary-from), var(--btn-secondary-to));
+    border: 1px solid rgb(var(--border-strong));
+  }
+  .btn-secondary:hover {
+    background: linear-gradient(180deg, var(--btn-secondary-hover-from), var(--btn-secondary-hover-to));
+    border-color: rgb(var(--btn-secondary-hover-border));
+  }
+
+  /* ===== Focus ring ===== */
+  .focus-ring:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 3px var(--focus-ring);
+  }
+
+  /* ===== Animation: pulsing dot ===== */
+  .animate-pulse-dot {
+    animation: pulse-dot 1.7s ease-in-out infinite;
+  }
+  @keyframes pulse-dot {
+    0%, 100% { opacity: 1; box-shadow: 0 0 0 0 rgb(var(--running) / 0.45); }
+    50% { opacity: 0.5; box-shadow: 0 0 0 5px rgb(var(--running) / 0); }
+  }
+
+  /* ===== Phase ring animation (pipeline nodes) ===== */
+  @keyframes phase-ring {
+    0% { transform: scale(0.9); opacity: 0.9; }
+    100% { transform: scale(1.32); opacity: 0; }
+  }
+
+  /* ===== Motion: entry ===== */
+  .animate-enter {
+    animation: enter 0.34s var(--ease) both;
+  }
+  @keyframes enter {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: none; }
+  }
+
+  /* Content unfold (dock → content) */
+  .animate-unfold {
+    animation: unfold 0.42s var(--ease) 0.06s both;
+  }
+  @keyframes unfold {
+    from { opacity: 0; transform: translateY(-14px) scale(0.992); }
+    to { opacity: 1; transform: none; }
+  }
+
+  /* ===== Slide-over (Radix Dialog) ===== */
+  .so-veil[data-state="open"] { animation: so-veil-in 0.22s ease; }
+  .so-veil[data-state="closed"] { animation: so-veil-out 0.22s ease; }
+  .so-panel[data-state="open"] { animation: so-panel-in 0.3s var(--ease); }
+  .so-panel[data-state="closed"] { animation: so-panel-out 0.3s var(--ease); }
+
+  @keyframes so-veil-in { from { opacity: 0; } to { opacity: 1; } }
+  @keyframes so-veil-out { from { opacity: 1; } to { opacity: 0; } }
+  @keyframes so-panel-in { from { transform: translateX(100%); } to { transform: translateX(0); } }
+  @keyframes so-panel-out { from { transform: translateX(0); } to { transform: translateX(100%); } }
+
+  /* ===== Drawer (non-Radix, class-toggled) ===== */
+  .drawer-veil {
+    position: fixed;
+    inset: 0;
+    background: var(--glass-veil);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.22s var(--ease);
+    z-index: 70;
+  }
+  .drawer-veil.is-open {
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  .drawer-panel {
+    position: fixed;
+    top: 0;
+    right: 0;
+    height: 100vh;
+    width: min(780px, 95vw);
+    z-index: 80;
+    display: flex;
+    flex-direction: column;
+    background: rgb(var(--surface));
+    border-left: 1px solid rgb(var(--border-strong));
+    box-shadow: -26px 0 64px rgba(0, 0, 0, 0.25);
+    transform: translateX(100%);
+    transition: transform 0.3s var(--ease);
+  }
+  .drawer-panel.is-open {
+    transform: translateX(0);
+  }
+  .drawer-panel.is-wide {
+    width: min(920px, 96vw);
+  }
+
+  /* ===== Selection tray ===== */
+  .tray-dock {
+    transform: translateY(110%);
+    transition: transform 0.22s var(--ease);
+  }
+  .tray-dock.is-up {
+    transform: translateY(0);
+  }
+
+  /* ===== Reduced motion ===== */
+  @media (prefers-reduced-motion: reduce) {
+    .animate-pulse-dot,
+    .animate-enter,
+    .animate-unfold { animation: none; }
+    * { transition-duration: 0.01ms !important; }
+    *, *::before, *::after {
+      animation: none !important;
+      transition: none !important;
+    }
+  }
+}

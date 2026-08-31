@@ -1,0 +1,120 @@
+"""Generate a fillable template from a model spec.
+
+Usage:
+    python generate_template.py --spec profiles/demo_device
+    python generate_template.py --spec profiles/demo_device --output template.txt
+"""
+
+import argparse
+import json
+from pathlib import Path
+
+
+def load_spec(spec_path: str) -> dict:
+    """Load model spec from directory or file path."""
+    p = Path(spec_path)
+    if p.is_dir():
+        p = p / "spec.json"
+    return json.loads(p.read_text())
+
+
+def generate_template(spec: dict) -> str:
+    """Generate fillable template from model spec."""
+    model = spec.get("model", "UNKNOWN")
+    description = spec.get("description", "")
+    board = spec.get("board", {})
+    features = spec.get("features", {})
+
+    lines = []
+    lines.append(f"# === Environment Template for {model} ===")
+    lines.append(f"# {description}")
+    lines.append("#")
+    lines.append("# Instructions:")
+    lines.append(
+        "#   Fill in what your test needs. Delete or comment out what you don't need."
+    )
+    lines.append(
+        f"#   Run: python generate_env.py --template <this_file> --spec profiles/<model>"
+    )
+    lines.append("")
+
+    lines.append("board:")
+    for key, value in board.items():
+        if key == "model":
+            lines.append(f"  {key}: {value}")
+        elif key == "lan_clients" and isinstance(value, int):
+            lines.append(
+                f"  # lan_clients — max {value}. Set how many needed (0 = none)"
+            )
+            lines.append("  lan_clients: 0")
+        elif key == "wifi_clients" and isinstance(value, dict):
+            max_n = value.get("max", 0)
+            bands = value.get("bands", [])
+            networks = value.get("networks", [])
+            lines.append(f"  # wifi_clients — max {max_n}")
+            if bands:
+                lines.append(f"  #   bands: {', '.join(str(b) for b in bands)}")
+            if networks:
+                lines.append(f"  #   networks: {', '.join(networks)}")
+            lines.append("  # wifi_clients:")
+            lines.append("  #   - band: 5")
+            lines.append("  #     network: private")
+        elif isinstance(value, list):
+            options = ", ".join(str(v) for v in value)
+            lines.append(f"  # {key} — options: {options}")
+            lines.append(f"  {key}: ___")
+        elif value is None:
+            lines.append(f"  # {key}: ___    # provide your value")
+        elif isinstance(value, dict):
+            lines.append(f"  # {key}:")
+            for sk, sv in value.items():
+                if isinstance(sv, list):
+                    lines.append(
+                        f"  #   {sk} — options: {', '.join(str(v) for v in sv)}"
+                    )
+                    lines.append(f"  #   {sk}: ___")
+                elif sv is None:
+                    lines.append(f"  #   {sk}: ___    # provide your value")
+                else:
+                    lines.append(f"  #   {sk}: {sv}")
+        else:
+            lines.append(f"  {key}: {value}")
+        lines.append("")
+
+    if features:
+        lines.append("# === Features ===")
+        lines.append("# Uncomment what your test needs.")
+        lines.append("")
+        for feat_name, feat_value in features.items():
+            if isinstance(feat_value, dict) and feat_value:
+                sub_keys = list(feat_value.keys())
+                lines.append(f"# {feat_name}: yes    # has: {', '.join(sub_keys)}")
+            else:
+                lines.append(f"# {feat_name}: yes")
+        lines.append("")
+
+    return "\n".join(lines)
+
+
+def main():
+    parser = argparse.ArgumentParser(
+        description="Generate fillable template from model spec"
+    )
+    parser.add_argument(
+        "--spec", required=True, help="Path to model spec dir or spec.json"
+    )
+    parser.add_argument("--output", help="Write to file (default: stdout)")
+    args = parser.parse_args()
+
+    spec = load_spec(args.spec)
+    template = generate_template(spec)
+
+    if args.output:
+        Path(args.output).write_text(template)
+        print(f"Template written to: {args.output}")
+    else:
+        print(template)
+
+
+if __name__ == "__main__":
+    main()

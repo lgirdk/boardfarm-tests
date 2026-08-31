@@ -1,0 +1,123 @@
+# **********************************************************************
+# SEARCH CONFIGURATION
+# Controls how the search engine retrieves relevant code stubs
+# **********************************************************************
+
+# ============================================================================
+# FOR AVAILABLE ENCODERS , REFER TO 
+#  --> AVAILABLE ENCODERS SECTINOS  IN  configs/search_store/store_config.toml
+#       should be mrked sometng like -> [encoders.*]
+#         "*" <-- this has the encoder name
+# ============================================================================
+
+encoder = "bge_small"          # ← references search_store configuration [encoders.*]
+
+# ----------------------------------------------------------------------------
+# GLOBAL STRATEGY
+# Apply to all searches across all corpora
+# ----------------------------------------------------------------------------
+[strategy]
+use_rrf_scoring = true              # Combine BM25 + FAISS scores using Reciprocal Rank Fusion
+include_raw_search_text = false         # Include raw test step text alongside LLM-generated queries
+final_review_enabled = false         # Run one final LLM review on merged results from all corpora
+keep_rounds = 2                  # ← GLOBAL: LLM review rounds (keep style)
+remove_rounds = 1                   # ← GLOBAL: LLM review rounds (remove style)
+
+
+# ----------------------------------------------------------------------------
+# FULL CORPUS SEARCH
+# Searches all entries in the entire codebse
+# Catches entries that focused sub-corpus searches might miss
+# ----------------------------------------------------------------------------
+[full_corpus]
+search_enabled = true               # Always enabled(can be dissabled) — fallback/catch-all
+bm25_top_k = 1
+faiss_top_k = 1
+faiss_threshold = 45                # Lower threshold — cast wider net
+
+# ═══════════════════════════════════════════════════════════
+# SUB-CORPUS GROUPS
+# ═══════════════════════════════════════════════════════════
+# Each group creates a focused, smaller search index built from the main corpus.
+# Searched separately so entries don't compete across categories.
+#
+#   categories      →  match entry category      (exact)
+#   repos           →  match entry repo name      (exact)
+#   module_patterns →  match entry file path    (contains)
+#
+# RULES:
+#   • Every axis must be listed. Use [] to skip an axis.
+#   • At least ONE axis must be non-empty.
+#   • Multiple non-empty axes are AND-ed together.
+#
+# EXAMPLE — "voice entries from olt-service, any module":
+#   categories      = ["voice"]
+#   repos           = ["olt-service"]
+#   module_patterns = []
+# ═══════════════════════════════════════════════════════════
+#
+# Available categories in the stub index:
+#   use_cases      — high-level operations that implement test steps
+#   templates      — device interfaces (LAN, WAN, ACS, CPE, CMTS)
+#   device_apis    — vendor implementations, GUI page objects
+#   lib_utils      — utility functions (retry, network helpers)
+#   dataclasses    — data structures (IPAddresses, PacketData)
+#   exceptions     — error types (TeardownError, TR069FaultCode)
+#   fixtures       — pytest fixtures (bf_context, bf_logger)
+#   other          — uncategorized entries
+#
+# Note: templates, exceptions, and fixtures are resolved automatically —
+#       they typically don't need sub-corpus searches
+# ----------------------------------------------------------------------------
+
+[sub_corpus_group.use_cases]
+categories = ["use_cases"]
+repos = []
+module_patterns = []
+search_enabled  = false
+bm25_top_k      = 6
+faiss_top_k     = 6
+faiss_threshold = 45
+
+[sub_corpus_group.opesource_usecase]
+categories = ["use_cases"]
+repos = ["boardfarm-docsis", "boardfarm"]
+module_patterns = []
+search_enabled  = true
+bm25_top_k      = 4
+faiss_top_k     = 4
+faiss_threshold = 45
+
+[sub_corpus_group.device_apis]
+categories = ["device_apis"]
+repos = []
+module_patterns = []
+search_enabled = true
+bm25_top_k = 2
+faiss_top_k = 2
+faiss_threshold = 40
+
+[sub_corpus_group.lib_utils_and_others]
+categories = ["lib_utils","other"]
+repos = []
+module_patterns = []
+search_enabled = true
+bm25_top_k = 2
+faiss_top_k = 2
+faiss_threshold = 40
+
+# ----------------------------------------------------------------------------
+# CUSTOM SUB-CORPUS CONFIGURTIONS
+#
+# Create your own focused search groups. Uncomment and modify as needed.
+# Any combination of group_by strategies is available.
+#
+# [sub_corpus_group.my_custom_group]
+# categories = ["use_cases"]
+# repos = ["actual repo names"]
+# module_patterns = ["module file name patterns"]
+# search_enabled  = true
+# bm25_top_k      = 6
+# faiss_top_k     = 6
+# faiss_threshold = 45
+# ----------------------------------------------------------------------------
