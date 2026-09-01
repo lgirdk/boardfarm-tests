@@ -13,7 +13,7 @@ from fastapi import FastAPI
 from boardfarm_api.ai_engine.engine import Engine as AIEngine
 
 # from .middleware import make_auth_middleware
-from .routers import codegen
+from .routers import codegen, runs
 
 # loggging  .....
 logging.basicConfig(
@@ -40,11 +40,12 @@ app = FastAPI(
     title="boardfarm-api",
     version="0.1.0",
     description="Api layer for boardfarm",
-    lifespan=lifespan,
+    # lifespan=lifespan,
 )
 
 # app.middleware("http")(make_auth_middleware())   # auth first, before routing
-app.include_router(codegen.router)  # like include('codegen.urls')
+app.include_router(codegen.router,prefix="/api")
+app.include_router(runs.router,prefix="/api")
 
 
 @app.get("/health")
