@@ -18,8 +18,6 @@ RUNS_DIR.mkdir(exist_ok=True)
 _CHUNK = 64 * 1024
 
 
-
-
 class CreateRunRequest(BaseModel):
     tests: list[str] = Field(..., min_length=1)
     board_name: str = Field(default="CH7465LG-3-1")
@@ -28,11 +26,12 @@ class CreateRunRequest(BaseModel):
 
 class RunState(BaseModel):
     id: str
-    status: str 
+    status: str
     tests: list[str]
     board_name: str
     created_at: float
     console_lines: int = 0
+
 
 _runs: dict[str, dict] = {}
 _tasks: dict[str, asyncio.Task] = {}
@@ -40,6 +39,7 @@ _tasks: dict[str, asyncio.Task] = {}
 
 def _log_path(run_id: str) -> Path:
     return RUNS_DIR / run_id / "console.log"
+
 
 async def _execute(run_id: str) -> None:
     state = _runs[run_id]
@@ -51,14 +51,22 @@ async def _execute(run_id: str) -> None:
     #     cmd.append(f"--env-config={state['env_config']}")
     # cmd.extend(state["tests"])
 
-    breakpoint()
-    # this is for testing 
-    cmd =  [
-    "timeout",
-    "30",
-    "bash",
-    "-c",
-    'i=1; while true; do echo "INFO: Testing streaming output $i"; i=$((i+1)); sleep 0.5; done'
+    # this is for testing
+
+    _prefix_dir = "../boardfarm/boardfarm3/configs"
+    env_conf = f"{_prefix_dir}/{state['env_config']}"
+    inventory_config = f"{_prefix_dir}/boardfarm_multiple_vcpe_rdkb_config_example.json"
+    cmd = [
+        "bash",
+        "-c",
+        "source ./.venv/bin/activate && pytest "
+        f"--board-name {state['board_name']} "
+        f"--env-config {env_conf} "
+        f"--inventory-config {inventory_config} "
+        f"--save-console-logs ./results_{run_id}/ "
+        "tests/gateway/ "
+        f'--test-names "{" ".join(state["tests"])}" '
+        f"--self-contained-html --html ./test_run_{run_id}.html",
     ]
     ########
     log_file = _log_path(run_id)
@@ -87,12 +95,12 @@ async def _execute(run_id: str) -> None:
     except asyncio.CancelledError:
         state["status"] = "failed"
     except Exception as e:
-        raise RuntimeError("smthings went wrong") from e 
+        raise RuntimeError("smthings went wrong") from e
+
 
 @router.post("", response_model=RunState)
 async def create_run(req: CreateRunRequest) -> RunState:
     run_id = f"r-{uuid.uuid4().hex[:6]}"
-
     state = {
         "id": run_id,
         "status": "queued",
@@ -126,6 +134,7 @@ async def get_run(run_id: str) -> RunState:
         raise HTTPException(404, f"Run {run_id} not found")
     return RunState(**_runs[run_id])
 
+
 @router.get("/{run_id}/console")
 async def get_console(run_id: str, offset: int = Query(default=0, ge=0)):
 
@@ -146,8 +155,6 @@ async def get_console(run_id: str, offset: int = Query(default=0, ge=0)):
     new_offset = offset + len(raw)
     # lines = [l for l in raw.split("\n") if l]    will see if i need it or not ????
     return {"lines": raw, "offset": new_offset, "done": done}
-
-
 
 
 @router.post("/{run_id}/cancel")
